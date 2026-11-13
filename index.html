@@ -193,6 +193,24 @@
     #lenses .custom .narrow { display:inline; font-size:17px; line-height:1; }          /* phones: lens chips show the number only, so all five and Custom fit */
     #lenses::before { content:"mm"; align-self:center; color:var(--dim); font:800 10px var(--display); letter-spacing:.08em; padding:0 2px 0 4px; }
   }
+  /* target shots, car, route drawing */
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips .btn { min-height:36px; padding:7px 11px; font-size:13px; }
+  #pickBar { position:fixed; left:50%; top:calc(env(safe-area-inset-top, 0px) + 8px); transform:translateX(-50%); z-index:7; display:flex; gap:10px; align-items:center;
+    background:var(--accent); color:#17130a; border-radius:14px; padding:6px 6px 6px 14px; box-shadow:0 6px 24px rgba(0,0,0,.5); white-space:nowrap; }
+  #pickBar .btn { background:rgba(0,0,0,.82); color:var(--ink); min-height:34px; padding:6px 10px; }
+  #routeEd { position:fixed; inset:0; z-index:12; background:#1b1d20; touch-action:none; overflow:hidden; }
+  #routeTiles { position:absolute; inset:0; }
+  #routeTiles img { position:absolute; width:256px; height:256px; max-width:none; pointer-events:none; }
+  #routeSvg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #routeDrone { position:absolute; width:18px; height:18px; margin:-9px 0 0 -9px; border-radius:50%; background:#fff; border:3px solid #17130a; box-shadow:0 0 0 2px #fff; pointer-events:none; }
+  #routeBar { position:absolute; left:50%; top:calc(env(safe-area-inset-top, 0px) + 10px); transform:translateX(-50%); width:min(560px, calc(100vw - 20px)); background:rgba(14,15,17,.92); border:1px solid var(--line);
+    border-radius:16px; padding:12px; -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+  #routeBar b { display:block; margin-bottom:8px; }
+  #routeBar .row { margin:0; }
+  #routeZoom { position:absolute; right:10px; bottom:calc(env(safe-area-inset-bottom, 0px) + 40px); display:flex; flex-direction:column; gap:6px; }
+  #routeZoom .btn { font-size:20px; font-weight:700; background:rgba(14,15,17,.92); }
+  #routeCredit { position:absolute; right:0; bottom:0; font-size:10px; color:#222; background:rgba(255,255,255,.8); padding:2px 6px; border-top-left-radius:6px; }
   /* quick tour */
   #tut { position:fixed; inset:0; z-index:20; touch-action:none; }
   #tutRing { position:fixed; border:2px solid var(--accent); border-radius:14px; box-shadow:0 0 0 4000px rgba(0,0,0,.55), 0 0 22px rgba(244,194,13,.55); pointer-events:none; transition:left .25s, top .25s, width .25s, height .25s; }
@@ -327,7 +345,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.0 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.1 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -345,6 +363,16 @@
       <span class="note">Frame the opening, then the ending. Shot Scout flies between them.</span>
       <div class="row"><button class="btn" id="setA">Set start</button><button class="btn" id="setB">Set end</button></div>
     </div>
+    <div class="card">
+      <b>Target shots</b>
+      <span class="note">Pick a subject and try ready-made moves around it, from classic to FPV style.</span>
+      <div class="row"><button class="btn" id="openShots">Choose a target shot</button></div>
+    </div>
+    <div class="card">
+      <b>Follow a car</b>
+      <span class="note">Draw a route for a car, then follow it automatically or fly it yourself.</span>
+      <div class="row"><button class="btn" id="openCar">Set up a car</button></div>
+    </div>
   </div>
   <h3>Current move</h3>
   <div class="note" id="moveInfo">No move yet. Create one above.</div>
@@ -358,6 +386,66 @@
   <h3>Saved moves</h3>
   <div id="moves"></div>
 </div>
+
+<!-- Target shots -->
+<div id="shotSheet" class="sheet" hidden>
+  <div class="sheetHead"><h2>Target shots</h2><button class="btn" id="closeShots">Done</button></div>
+  <div class="row"><button class="btn go" id="pickTarget">Pick a target</button><span class="note" id="targetInfo">No target yet. Tap the button, then tap your subject on the map.</span></div>
+  <div class="row"><span class="note">Subject size</span><input id="tgSize" type="range" min="5" max="400" step="5" value="40" aria-label="Subject size in metres"><b id="tgSizeLbl">40 m</b></div>
+  <h3>Classic</h3>
+  <div class="chips" id="shotsClassic"></div>
+  <h3>FPV style</h3>
+  <div class="chips" id="shotsFpv"></div>
+  <div class="note" id="shotInfo" style="margin-top:10px">Tap a shot to preview it around your target.</div>
+  <div class="row" style="margin-top:8px">
+    <button class="btn" id="shotVary" disabled>Try a variation</button>
+    <button class="btn" id="shotAgain" disabled>Play again</button>
+    <button class="btn" id="shotToMoves" disabled>Save or export</button>
+  </div>
+</div>
+
+<!-- Car -->
+<div id="carSheet" class="sheet" hidden>
+  <div class="sheetHead"><h2>Follow a car</h2><button class="btn" id="closeCar">Done</button></div>
+  <div class="row"><button class="btn go" id="drawRoute">Draw the route</button><span class="note" id="routeInfo">No route yet. Draw one on the street map.</span></div>
+  <div class="row"><span class="note">Car speed</span><input id="carSpeed" type="range" min="10" max="160" step="5" value="50" aria-label="Car speed"><b id="carSpeedLbl">50 km/h</b></div>
+  <h3>Fly it yourself</h3>
+  <div class="row">
+    <button class="btn" id="carGo" disabled>Start the car</button>
+    <button class="btn" id="carReset" disabled>Back to start</button>
+    <button class="btn" id="carLock" disabled>Camera lock off</button>
+  </div>
+  <div class="note">Camera lock keeps the camera on the car while you fly. Use Record my flight in Moves to capture it.</div>
+  <h3>Follow shots</h3>
+  <div class="chips" id="carShots"></div>
+  <div class="note" id="carInfo" style="margin-top:10px">Draw a route, then tap a shot to preview it.</div>
+  <div class="row" style="margin-top:8px">
+    <button class="btn" id="carVary" disabled>Try a variation</button>
+    <button class="btn" id="carAgain" disabled>Play again</button>
+    <button class="btn" id="carToMoves" disabled>Save or export</button>
+    <button class="btn" id="carRemove" disabled>Remove car</button>
+  </div>
+</div>
+
+<!-- Route drawing on the street map -->
+<div id="routeEd" hidden>
+  <div id="routeTiles"></div>
+  <svg id="routeSvg"><polyline id="routeLine" fill="none" stroke="#f4c20d" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/><g id="routeDots"></g></svg>
+  <div id="routeDrone" title="Where your view is"></div>
+  <div id="routeBar">
+    <b id="routeHint">Tap along the road to draw the car's route</b>
+    <div class="row">
+      <button class="btn" id="routeUndo">Undo</button>
+      <button class="btn" id="routeClear">Clear</button>
+      <button class="btn" id="routeCancel">Cancel</button>
+      <button class="btn go" id="routeDone">Use this route</button>
+    </div>
+  </div>
+  <div id="routeZoom"><button class="btn icon" id="routeIn" aria-label="Zoom in">+</button><button class="btn icon" id="routeOut" aria-label="Zoom out">−</button></div>
+  <div id="routeCredit">© OpenStreetMap contributors</div>
+</div>
+
+<div id="pickBar" hidden><b>Tap your subject on the map</b><button class="btn" id="pickCancel">Cancel</button></div>
 
 <div id="vid" hidden>
   <div class="inner">
@@ -398,7 +486,7 @@
   <p class="by">Created by <b>Patrick Weir</b></p>
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
-  <div class="tap">TAP TO START · VERSION 3.0</div>
+  <div class="tap">TAP TO START · VERSION 3.1</div>
 </div>
 <div id="toast"></div>
 
@@ -610,6 +698,183 @@
     for (var k = 0; k < PATH_KEYS.length; k++) o[PATH_KEYS[k]] = a[PATH_KEYS[k]] + (b[PATH_KEYS[k]] - a[PATH_KEYS[k]]) * u;
     return o;
   }
+  // ---------- generated shots: geometry helpers (all testable without the 3D engine) ----------
+  var EARTH_R = 6378137, DEG = Math.PI / 180;
+  function llOffset(lonDeg, latDeg, eastM, northM) {
+    return [lonDeg + (eastM / (EARTH_R * Math.cos(latDeg * DEG))) / DEG, latDeg + (northM / EARTH_R) / DEG];
+  }
+  function llDelta(lon0, lat0, lon1, lat1) {       // metres east and north from point 0 to point 1
+    return [(lon1 - lon0) * DEG * EARTH_R * Math.cos(lat0 * DEG), (lat1 - lat0) * DEG * EARTH_R];
+  }
+  function sm01(u) { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); }
+  function mix(a, b, u) { return a + (b - a) * u; }
+  function soft(u) { return sm01(u) * 0.35 + u * 0.65; }           // nearly constant speed with gentle ends
+  // The catalogue. Each shot returns the camera's place for progress u (0..1) in the target's own frame:
+  //   a = metres along the starting bearing (out from the target), p = metres to the side, z = metres above the target point,
+  //   w = how much the camera looks at the target (1) versus along its line of travel (0), fp = pitch (deg) when looking along travel.
+  function polar(betaDeg, r, z, extra) { var o = extra || {}; o.a = r * Math.cos(betaDeg * DEG); o.p = r * Math.sin(betaDeg * DEG); o.z = z; return o; }
+  var SHOTS = [
+    { id: "orbit", name: "Orbit", kind: "classic", dur: 16, f: function (u, d, h, s, o) { return polar(360 * (o.arc || 1) * soft(u), d, h); } },
+    { id: "pushIn", name: "Push in", kind: "classic", dur: 10, f: function (u, d, h) { var e = sm01(u); return { a: mix(3.2 * d, 0.9 * d, e), p: 0, z: mix(1.3 * h, 0.8 * h, e) }; } },
+    { id: "pullBack", name: "Pull back", kind: "classic", dur: 10, f: function (u, d, h) { var e = sm01(u); return { a: mix(0.6 * d, 3.5 * d, e), p: 0, z: mix(0.45 * h, 1.0 * h, e) }; } },
+    { id: "riseReveal", name: "Rising reveal", kind: "classic", dur: 12, f: function (u, d, h, s) { return { a: 1.2 * d, p: 0, z: mix(0.12 * h, 2.4 * h + 0.5 * s, sm01(u)) }; } },
+    { id: "risePush", name: "Rise and push in", kind: "classic", dur: 12, f: function (u, d, h) { var e = sm01(u); return { a: mix(2.4 * d, 1.3 * d, e), p: 0, z: mix(0.06 * h, 1.7 * h, e) }; } },
+    { id: "topDown", name: "Top-down rise", kind: "classic", dur: 12, f: function (u, d, h, s) { return { a: 0.01, p: 0, z: mix(0.8 * h + 0.5 * s, 2 * h + s, sm01(u)), spin: 90 * u }; } },
+    { id: "slide", name: "Parallax slide", kind: "classic", dur: 12, f: function (u, d, h) { return { a: 1.4 * d, p: mix(-1.3 * d, 1.3 * d, sm01(u)), z: h }; } },
+    { id: "spiral", name: "Spiral climb", kind: "classic", dur: 18, f: function (u, d, h, s) { return polar(360 * soft(u), mix(1.6 * d, 0.9 * d, u), mix(0.4 * h, 2.6 * h + 0.4 * s, sm01(u))); } },
+    { id: "dronie", name: "Pull-away", kind: "classic", dur: 10, f: function (u, d, h, s) { var e = sm01(u); return { a: mix(0.5 * d, 4 * d, e), p: 0, z: mix(0.3 * h, 2.5 * h + 0.5 * s, e) }; } },
+    { id: "flyover", name: "Flyover", kind: "classic", dur: 12, f: function (u, d, h, s) { var a = mix(2.6 * d, -2.6 * d, soft(u)); return { a: a, p: 0, z: 1.2 * h + 0.6 * s, w: sm01(a / (0.7 * d)), fp: -32 }; } },
+    { id: "dive", name: "Dive and pull out", kind: "fpv", dur: 9, f: function (u, d, h, s) {
+        var k = 0.66;
+        if (u < k) { var e = (u / k) * (u / k); return { a: mix(0.95 * d, 0.45 * d, e), p: 0, z: mix(3 * h + 0.5 * s, 0.22 * h, e), w: 1 }; }
+        var v = (u - k) / (1 - k), q = polar(75 * sm01(v), mix(0.45 * d, 1.9 * d, sm01(v)), mix(0.22 * h, 0.4 * h, v));
+        q.w = 1 - sm01(v * 2.2); q.fp = -6; return q; } },
+    { id: "corkscrew", name: "Corkscrew dive", kind: "fpv", dur: 11, f: function (u, d, h, s) { return polar(540 * soft(u), mix(1.35 * d, 0.7 * d, u), mix(3 * h + 0.5 * s, 0.4 * h, sm01(u))); } },
+    { id: "proximity", name: "Proximity pass", kind: "fpv", dur: 8, f: function (u, d, h) { return { a: mix(3 * d, -2.2 * d, soft(u)), p: 0.38 * d, z: mix(0.7 * h, 0.45 * h, u), w: sm01((u - 0.5) / 0.28), fp: -4 }; } },
+    { id: "rocket", name: "Rocket climb", kind: "fpv", dur: 8, f: function (u, d, h, s) { return polar(360 * soft(u), 0.28 * d, mix(0.35 * h, 3 * h + 0.5 * s, 1 - (1 - u) * (1 - u))); } },
+    { id: "overTop", name: "Up and over", kind: "fpv", dur: 9, f: function (u, d, h, s) {
+        var phi = mix(18, 150, sm01(u)), R = 1.25 * d + 0.6 * s;
+        return { a: R * Math.cos(phi * DEG), p: 0, z: 0.3 * h + (1.8 * h + 0.6 * s) * Math.sin(phi * DEG), w: 1 - sm01((phi - 70) / 50), fp: -18 }; } },
+    { id: "orbitDive", name: "Tightening orbit", kind: "fpv", dur: 12, f: function (u, d, h, s) { return polar(420 * soft(u), mix(2.2 * d, 0.6 * d, Math.pow(u, 1.5)), mix(2 * h + 0.5 * s, 0.3 * h, Math.pow(u, 1.3))); } }
+  ];
+  var SHOT_LIMIT = { classic: 20, fpv: 39 };          // metres per second a real aircraft of each kind can comfortably hold
+  function shotById(id) { for (var i = 0; i < SHOTS.length; i++) if (SHOTS[i].id === id) return SHOTS[i]; return null; }
+  // Turn camera places (east, north, up metres from an origin) plus look rules into a playable path.
+  // pts: [{e, n, z, w, fp, hdg?, te, tn, tz}] where (te, tn, tz) is what to look at; bank adds FPV-style roll in turns.
+  function buildPath(origin, pts, dur, focal, bank) {
+    var n = pts.length, out = [], i, dt = dur / (n - 1);
+    for (i = 0; i < n; i++) {
+      var q = pts[i], a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+      var ve = b.e - a.e, vn = b.n - a.n, vh = Math.hypot(ve, vn) || 1e-6;
+      var te = q.te - q.e, tn = q.tn - q.n, tz = q.tz - q.z, tl = Math.hypot(te, tn, tz) || 1e-6;
+      var w = q.w === undefined ? 1 : q.w, fp = (q.fp === undefined ? -8 : q.fp) * DEG;
+      var fe = ve / vh * Math.cos(fp), fn = vn / vh * Math.cos(fp), fz = Math.sin(fp);
+      var de = w * te / tl + (1 - w) * fe, dn = w * tn / tl + (1 - w) * fn, dz = w * tz / tl + (1 - w) * fz;
+      var heading = q.hdg !== undefined ? q.hdg * DEG : Math.atan2(de, dn), ll = llOffset(origin.lon, origin.lat, q.e, q.n);
+      out.push({ t: i * dt, lon: ll[0] * DEG, lat: ll[1] * DEG, h: origin.h + q.z, heading: heading,
+                 gimbal: Math.atan2(dz, Math.hypot(de, dn)) / DEG, roll: 0, focal: focal, _v: vh / (2 * dt) * (i === 0 || i === n - 1 ? 2 : 1) });
+    }
+    for (i = 1; i < n; i++) {                              // keep heading continuous through north
+      var d = out[i].heading - out[i - 1].heading;
+      while (d > Math.PI) { out[i].heading -= 2 * Math.PI; d -= 2 * Math.PI; }
+      while (d < -Math.PI) { out[i].heading += 2 * Math.PI; d += 2 * Math.PI; }
+    }
+    if (bank) {
+      var raw = [];
+      for (i = 0; i < n; i++) {
+        var p0 = out[Math.max(0, i - 2)], p1 = out[Math.min(n - 1, i + 2)], rate = (p1.heading - p0.heading) / Math.max(1e-6, p1.t - p0.t);
+        raw.push(Math.max(-55 * DEG, Math.min(55 * DEG, Math.atan(out[i]._v * rate / 9.81) * bank)));
+      }
+      for (i = 0; i < n; i++) { var s = 0, c = 0; for (var j = -3; j <= 3; j++) { var k = i + j; if (k >= 0 && k < n) { s += raw[k]; c++; } } out[i].roll = s / c; }
+    }
+    for (i = 0; i < n; i++) delete out[i]._v;
+    return out;
+  }
+  // tg: { lon, lat, h } in degrees and metres. o: { size, bearing (deg, where the camera starts, seen from the target), dir, dScale, hScale, dur, focal, arc }
+  function shotPath(id, tg, o) {
+    var def = shotById(id), s = o.size, d0 = Math.max(22, 1.2 * s + 15) * (o.dScale || 1), h0 = Math.max(10, 0.35 * s + 8) * (o.hScale || 1);
+    var dir = o.dir || 1, th = o.bearing * DEG, Ae = Math.sin(th), An = Math.cos(th), Pe = Math.sin(th + dir * Math.PI / 2), Pn = Math.cos(th + dir * Math.PI / 2);
+    var n = Math.max(30, Math.round(o.dur * 10)) + 1, pts = [];
+    for (var i = 0; i < n; i++) {
+      var u = i / (n - 1), q = def.f(u, d0, h0, s, o);
+      var pt = { e: q.a * Ae + q.p * Pe, n: q.a * An + q.p * Pn, z: Math.max(3, q.z), w: q.w, fp: q.fp, te: 0, tn: 0, tz: 0 };
+      if (q.spin !== undefined) pt.hdg = o.bearing + 180 + dir * q.spin;
+      pts.push(pt);
+    }
+    return buildPath(tg, pts, o.dur, o.focal || 24, def.kind === "fpv" ? 0.8 : 0);
+  }
+  // Fastest moment, total distance and highest point of a path.
+  function pathStats(path) {
+    var peak = 0, dist = 0, top = -1e9, low = 1e9;
+    for (var i = 0; i < path.length; i++) {
+      top = Math.max(top, path[i].h); low = Math.min(low, path[i].h);
+      if (!i) continue;
+      var a = path[i - 1], b = path[i], d = Math.hypot((b.lat - a.lat) * EARTH_R, (b.lon - a.lon) * EARTH_R * Math.cos(a.lat), b.h - a.h);
+      dist += d; peak = Math.max(peak, d / Math.max(1e-6, b.t - a.t));
+    }
+    return { peak: peak, dist: dist, top: top, low: low, dur: path[path.length - 1].t };
+  }
+  // Shortest duration at which a path stays under a speed limit (speed scales inversely with duration).
+  function fitDuration(path, wanted, limit) { var st = pathStats(path); return Math.max(wanted, Math.ceil(st.peak * st.dur / (limit * 0.95))); }
+
+  // ---------- car routes ----------
+  // taps: [[lonDeg, latDeg], ...] in order. Returns a smooth line through them with a point about every 8 m.
+  function routeBuild(taps) {
+    if (!taps || taps.length < 2) return null;
+    var o = { lon: taps[0][0], lat: taps[0][1] }, P = taps.map(function (t) { return llDelta(o.lon, o.lat, t[0], t[1]); }), pts = [], i, j;
+    function cr(p0, p1, p2, p3, u) { var u2 = u * u, u3 = u2 * u; return 0.5 * ((2 * p1) + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3); }
+    for (i = 0; i < P.length - 1; i++) {
+      var p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)], seg = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), steps = Math.max(1, Math.round(seg / 8));
+      for (j = 0; j < steps; j++) pts.push([cr(p0[0], p1[0], p2[0], p3[0], j / steps), cr(p0[1], p1[1], p2[1], p3[1], j / steps)]);
+    }
+    pts.push(P[P.length - 1]);
+    return routeFromMetres(o, pts, null);
+  }
+  function routeFromMetres(o, xy, heights) {
+    var d = 0, out = [];
+    for (var i = 0; i < xy.length; i++) {
+      if (i) d += Math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]);
+      var ll = llOffset(o.lon, o.lat, xy[i][0], xy[i][1]);
+      out.push({ lon: ll[0], lat: ll[1], h: heights ? heights[i] : 0, d: d, e: xy[i][0], n: xy[i][1] });
+    }
+    return { o: o, pts: out, len: d };
+  }
+  // Rebuild a route from saved [lon, lat, h] points.
+  function routeFromSaved(list) {
+    var o = { lon: list[0][0], lat: list[0][1] };
+    return routeFromMetres(o, list.map(function (p) { return llDelta(o.lon, o.lat, p[0], p[1]); }), list.map(function (p) { return p[2] || 0; }));
+  }
+  // Where the car is after driving d metres: position, height and the way it's facing (degrees clockwise from north).
+  function routeAt(route, d) {
+    var P = route.pts, lo = 0, hi = P.length - 1;
+    d = Math.max(0, Math.min(route.len, d));
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (P[mid].d <= d) lo = mid; else hi = mid; }
+    var a = P[lo], b = P[hi], span = b.d - a.d, u = span > 0 ? (d - a.d) / span : 0;
+    return { lon: mix(a.lon, b.lon, u), lat: mix(a.lat, b.lat, u), h: mix(a.h, b.h, u), e: mix(a.e, b.e, u), n: mix(a.n, b.n, u),
+             bearing: (Math.atan2(b.e - a.e, b.n - a.n) / DEG + 360) % 360 };
+  }
+  var CAR_SHOTS = [
+    { id: "chase", name: "Chase", kind: "classic", f: function (u, k) { return { f: -14 * k.sc, r: 0, up: 5 * k.sc }; } },
+    { id: "lead", name: "Lead", kind: "classic", f: function (u, k) { return { f: 16 * k.sc, r: 0, up: 4 * k.sc }; } },
+    { id: "side", name: "Side track", kind: "classic", f: function (u, k) { return { f: 2, r: k.side * 16 * k.sc, up: 3.5 * k.sc }; } },
+    { id: "carOrbit", name: "Orbit", kind: "classic", f: function (u, k) { var a = (180 + k.side * 360 * soft(u)) * DEG; return { f: 24 * k.sc * Math.cos(a), r: 24 * k.sc * Math.sin(a), up: 8 * k.sc }; } },
+    { id: "carTop", name: "Top-down", kind: "classic", f: function (u, k) { return { f: 0.01, r: 0, up: mix(35, 60, sm01(u)) * k.sc, top: true }; } },
+    { id: "crane", name: "Crane up", kind: "classic", f: function (u, k) { var e = sm01(u); return { f: mix(-9, -48, e) * k.sc, r: 0, up: mix(2.5, 38, e) * k.sc }; } },
+    { id: "passBy", name: "Pass-by reveal", kind: "classic", f: function (u, k) { return { fixed: true, r: k.side * 18 * k.sc, up: mix(3, 26, sm01(u)) * k.sc }; } },
+    { id: "carDive", name: "FPV dive", kind: "fpv", f: function (u, k) { var e = sm01(u / 0.6); return { f: mix(-95, -7, e), r: k.side * mix(0, 5, sm01((u - 0.6) / 0.4)), up: mix(85, 2.4, e) }; } }
+  ];
+  function carShotById(id) { for (var i = 0; i < CAR_SHOTS.length; i++) if (CAR_SHOTS[i].id === id) return CAR_SHOTS[i]; return null; }
+  // A camera path that follows a car driving the route at a steady speed (m/s). o: { dur, side (1 or -1), sc (distance scale), focal }
+  function carShotPath(id, route, speed, o) {
+    var def = carShotById(id), dur = Math.max(3, Math.min(o.dur, route.len / speed)), n = Math.round(dur * 10) + 1, k = { side: o.side || 1, sc: o.sc || 1 }, pts = [], i;
+    var look = speed * 1.3, mid = routeAt(route, speed * dur * 0.5), mb = mid.bearing * DEG;
+    for (i = 0; i < n; i++) {
+      var u = i / (n - 1), t = u * dur, c = routeAt(route, speed * t), b0 = routeAt(route, speed * t - look).bearing * DEG, b1 = routeAt(route, speed * t + look).bearing * DEG;
+      var be = Math.sin(b0) + Math.sin(c.bearing * DEG) + Math.sin(b1), bn = Math.cos(b0) + Math.cos(c.bearing * DEG) + Math.cos(b1), bs = Math.atan2(be, bn);   // steadied facing, so corners don't whip the camera
+      var q = def.f(u, k), pt;
+      if (q.fixed) pt = { e: mid.e + q.r * Math.cos(mb), n: mid.n - q.r * Math.sin(mb), z: mid.h + q.up };
+      else pt = { e: c.e + q.f * Math.sin(bs) + q.r * Math.cos(bs), n: c.n + q.f * Math.cos(bs) - q.r * Math.sin(bs), z: c.h + q.up };
+      pt.te = c.e; pt.tn = c.n; pt.tz = c.h + 1.2; pt.w = 1;
+      if (q.top) pt.hdg = bs / DEG;
+      pts.push(pt);
+    }
+    for (var pass = 0; pass < 3; pass++) {                 // soften kinks in the camera's own line
+      var sm = pts.map(function (p, ix) { var e = 0, nn = 0, z = 0, cn = 0; for (var j = -3; j <= 3; j++) { var m = pts[ix + j]; if (m) { e += m.e; nn += m.n; z += m.z; cn++; } } return [e / cn, nn / cn, z / cn]; });
+      for (i = 2; i < n - 2; i++) { pts[i].e = sm[i][0]; pts[i].n = sm[i][1]; pts[i].z = sm[i][2]; }
+    }
+    var org = { lon: route.o.lon, lat: route.o.lat, h: 0 };
+    return buildPath(org, pts, dur, o.focal || 24, def.kind === "fpv" ? 0.8 : 0);
+  }
+  // Heading (rad) and tilt (deg) to aim a camera at a point; positions in degrees and metres.
+  function aimAt(lon, lat, h, tLon, tLat, tH) {
+    var d = llDelta(lon, lat, tLon, tLat);
+    return { heading: (Math.atan2(d[0], d[1]) + 2 * Math.PI) % (2 * Math.PI), gimbal: Math.atan2(tH - h, Math.hypot(d[0], d[1])) / DEG, dist: Math.hypot(d[0], d[1], tH - h) };
+  }
+  // Web-map tile maths, backwards: the longitude and latitude of a pixel position at a zoom level.
+  function worldLL(x, y, z) {
+    var size = 256 * Math.pow(2, z), n = Math.PI - 2 * Math.PI * y / size;
+    return { lon: x / size * 360 - 180, lat: Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))) / DEG };
+  }
   // Web-map tile maths: pixel position of a point at a zoom level.
   function worldPx(lonDeg, latDeg, z) {
     var size = 256 * Math.pow(2, z), lat = latDeg * Math.PI / 180;
@@ -617,7 +882,8 @@
   }
   if (typeof module !== "undefined" && typeof window === "undefined") {
     module.exports = { sunPosition: sunPosition, sunEvents: sunEvents, instant: instant, tzText: tzText, hhmm: hhmm,
-                       FPV: FPV, fpvStep: fpvStep, fpvShape: fpvShape, fpvThrottle: fpvThrottle, fpvSetPack: fpvSetPack, FPV_PACKS: FPV_PACKS, smoothPath: smoothPath, pathAt: pathAt, qLevel: qLevel, qHeading: qHeading, qRot: qRot, worldPx: worldPx }; return;
+                       FPV: FPV, fpvStep: fpvStep, fpvShape: fpvShape, fpvThrottle: fpvThrottle, fpvSetPack: fpvSetPack, FPV_PACKS: FPV_PACKS, smoothPath: smoothPath, pathAt: pathAt, SHOTS: SHOTS, shotPath: shotPath, pathStats: pathStats, fitDuration: fitDuration, SHOT_LIMIT: SHOT_LIMIT,
+                       routeBuild: routeBuild, routeAt: routeAt, routeFromSaved: routeFromSaved, CAR_SHOTS: CAR_SHOTS, carShotPath: carShotPath, aimAt: aimAt, worldLL: worldLL, llDelta: llDelta, qLevel: qLevel, qHeading: qHeading, qRot: qRot, worldPx: worldPx }; return;
   }
 
   // ---------- splash ----------
@@ -648,7 +914,7 @@
   var deviceTz = -new Date().getTimezoneOffset();
   var S = { mode: "scout", lon: 0, lat: 0, h: 0, heading: 0, gimbal: -15, gimbalT: -15, bank: 0, nose: 0, flown: false,
             vf: 0, vr: 0, vu: 0, vy: 0, home: null, focal: 24, prevFocal: 24, aspectIx: 0, speed: "sport", tz: deviceTz, hfov: 1,
-            sunPath: false, sunCenter: null, moveA: null, moveB: null, movePath: null, moveRaw: null, playT: 0, playDur: 10, playPaused: false };
+            sunPath: false, sunCenter: null, moveA: null, moveB: null, movePath: null, moveRaw: null, playT: 0, playDur: 10, playPaused: false, target: null, moveKind: null, genName: null, moveCar: null, returnTo: null };
   var SPEEDS = { cine:   { h: 3,  v: 1.5, y: 20,  label: "Cine" },
                  normal: { h: 10, v: 4,   y: 60,  label: "Normal" },
                  sport:  { h: 19, v: 8,   y: 90,  label: "Sport" },
@@ -1049,7 +1315,7 @@
     }
     window.addEventListener("contextmenu", function (e) { if (S.mode === "fly" || held) e.preventDefault(); });
     map.addEventListener("pointerdown", function (e) {
-      if (S.mode === "fly" && e.pointerType === "mouse" && e.button === 0) { monsterFire(); return; }
+      if (S.mode === "fly" && e.pointerType === "mouse" && e.button === 0) { if (!picking) monsterFire(); return; }
       if (!canLook() || e.pointerType !== "mouse" || e.button !== 2) return;
       held = true; e.preventDefault();
       // hide and hold the pointer while the button is down so it can't run off the edge of the screen
@@ -1183,17 +1449,19 @@
     $("durLbl").textContent = S.playDur + " s";
     $("setA").classList.toggle("on", !!S.moveA); $("setB").classList.toggle("on", !!S.moveB);
     $("playBtn").disabled = !(S.moveA && S.moveB); $("saveMove").disabled = !(S.moveA && S.moveB); $("recBtn").disabled = !(S.moveA && S.moveB);
+    drawPathLine();
     if (S.moveA && S.moveB) {
       var d = moveDistance();
       $("smoothRow").hidden = !S.moveRaw;
-      $("moveInfo").textContent = (S.movePath ? "Your flight" + (S.movePath.keyPoints ? ", smoothed to " + S.movePath.keyPoints + " key points" : "") + " · " : "Point to point · ") + d.toFixed(0) + " m in " + S.playDur + " s · average " + (d / S.playDur).toFixed(1) + " m/s (" + (d / S.playDur * 3.6).toFixed(0) + " km/h) · " +
+      $("moveInfo").textContent = (S.moveRaw ? "Your flight" + (S.movePath.keyPoints ? ", smoothed to " + S.movePath.keyPoints + " key points" : "") + (S.moveCar ? ", with the car" : "") + " · "
+        : S.movePath ? (S.genName || "Your flight") + " · " : "Point to point · ") + d.toFixed(0) + " m in " + S.playDur + " s · average " + (d / S.playDur).toFixed(1) + " m/s (" + (d / S.playDur * 3.6).toFixed(0) + " km/h) · " +
         S.moveA.focal + "mm to " + S.moveB.focal + "mm";
     } else if (S.moveA) { $("moveInfo").textContent = "Start set. Now frame the ending and tap Set end.";
     } else if (S.moveB) { $("moveInfo").textContent = "End set. Now frame the opening and tap Set start.";
     } else { $("moveInfo").textContent = "No move yet. Create one above."; $("smoothRow").hidden = true; }
   }
-  $("setA").onclick = function () { S.moveRaw = null; if (S.movePath) { S.movePath = null; S.moveB = null; } S.moveA = captureState(); updateMoveInfo(); toast("Start set"); };
-  $("setB").onclick = function () { S.moveRaw = null; if (S.movePath) { S.movePath = null; S.moveA = null; } S.moveB = captureState(); updateMoveInfo(); toast("End set"); };
+  $("setA").onclick = function () { S.moveRaw = null; S.moveCar = null; S.moveKind = null; S.genName = null; if (S.movePath) { S.movePath = null; S.moveB = null; } S.moveA = captureState(); updateMoveInfo(); toast("Start set"); };
+  $("setB").onclick = function () { S.moveRaw = null; S.moveCar = null; S.moveKind = null; S.genName = null; if (S.movePath) { S.movePath = null; S.moveA = null; } S.moveB = captureState(); updateMoveInfo(); toast("End set"); };
 
   var smoothAmt = clamp(store.get("smooth") === null ? 70 : +store.get("smooth"), 0, 100);
   // Rebuild the smoothed path from the flight as it was actually flown, at the current slider amount.
@@ -1214,9 +1482,9 @@
   var cap = null, PATH_MAX = 120;
   function finishPath() {
     if (!cap) return;
-    clearInterval(cap.timer); var raw = cap.samples; cap = null; $("pathStop").hidden = true;
+    clearInterval(cap.timer); var raw = cap.samples, capCar = cap.car || null; cap = null; $("pathStop").hidden = true;
     if (raw.length < 10 || raw[raw.length - 1].t < 1.5) { toast("That was too short to make a move. Fly for at least a couple of seconds."); return; }
-    S.moveRaw = raw; applySmoothing();
+    S.moveRaw = raw; S.moveCar = capCar; S.moveKind = null; S.genName = null; applySmoothing();
     var b = S.movePath[S.movePath.length - 1];
     S.playDur = clamp(Math.round(b.t), 3, 120); $("dur").value = S.playDur;
     renderMoves(); updateMoveInfo(); openPanel("moveSheet");
@@ -1232,6 +1500,7 @@
       $("pathStop").textContent = "\u25cf Stop recording  " + Math.floor(t / 60) + ":" + pad(Math.floor(t % 60));
       if (t >= PATH_MAX) finishPath();
     }, 50) };
+    cap.car = (car.route && car.running) ? { route: car.route, speed: car.speed, t0: car.clock } : null;   // so playback shows the car where it was
     $("pathStop").textContent = "\u25cf Stop recording  0:00"; $("pathStop").hidden = false;
     toast(S.mode === "fly" ? "Recording your flight. Fly the shot, then tap Stop recording." : "Recording the view. Take off or move the view, then tap Stop recording.", 3600);
   };
@@ -1246,15 +1515,17 @@
       var row = document.createElement("div"); row.className = "shot";
       var info = document.createElement("div"), name = document.createElement("b"), meta = document.createElement("small");
       name.textContent = m.name;
- meta.textContent = (m.path ? "Flown · " : "Point to point · ") + m.dur + " s · " + Math.round(m.A.focal) + "mm to " + Math.round(m.B.focal) + "mm";
+ meta.textContent = (m.gen ? m.gen + " · " : m.path ? "Flown · " : "Point to point · ") + (m.car ? "with car · " : "") + m.dur + " s · " + Math.round(m.A.focal) + "mm to " + Math.round(m.B.focal) + "mm";
       info.appendChild(name); info.appendChild(meta);
       var play = document.createElement("button"); play.className = "btn"; play.textContent = "Play";
       play.onclick = function () {
-        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; $("dur").value = m.dur; updateMoveInfo(); $("playBtn").click();
+        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; S.moveKind = m.kind || null; S.genName = m.gen || null; S.returnTo = null;
+        S.moveCar = m.car ? { route: routeFromSaved(m.car.pts), speed: m.car.speed, t0: m.car.t0 } : null; $("dur").value = m.dur; updateMoveInfo(); $("playBtn").click();
       };
       var vid = document.createElement("button"); vid.className = "btn"; vid.textContent = "Export";
       vid.onclick = function () {
-        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; $("dur").value = m.dur; updateMoveInfo(); S.recName = m.name; startMove(true);
+        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; S.moveKind = m.kind || null; S.genName = m.gen || null; S.returnTo = null;
+        S.moveCar = m.car ? { route: routeFromSaved(m.car.pts), speed: m.car.speed, t0: m.car.t0 } : null; $("dur").value = m.dur; updateMoveInfo(); S.recName = m.name; startMove(true);
       };
       var del = document.createElement("button"); del.className = "btn"; del.textContent = "Delete";
       del.onclick = function () { var all = loadMoves(); all.splice(i, 1); store.set("moves", JSON.stringify(all)); renderMoves(); };
@@ -1265,7 +1536,8 @@
     if (!(S.moveA && S.moveB)) return;
     var all = loadMoves(), n = all.length + 1;
     while (all.some(function (m) { return m.name === "Move " + n; })) n++;
-    all.push({ name: "Move " + n, A: S.moveA, B: S.moveB, dur: S.playDur, path: S.movePath || null });
+    all.push({ name: "Move " + n, A: S.moveA, B: S.moveB, dur: S.playDur, path: S.movePath || null, kind: S.moveKind || null, gen: S.moveRaw ? null : (S.genName || null),
+               car: S.moveCar ? { pts: S.moveCar.route.pts.map(function (q) { return [+q.lon.toFixed(6), +q.lat.toFixed(6), +q.h.toFixed(1)]; }), speed: S.moveCar.speed, t0: S.moveCar.t0 } : null });
     toast(store.set("moves", JSON.stringify(all)) ? "Saved as Move " + n : "Couldn't save: this device's storage for the app is full");
     renderMoves();
   };
@@ -1283,11 +1555,11 @@
     if (!S.home) setHome(S.moveA.lon / D2R, S.moveA.lat / D2R, S.moveA.h - 30);
     S.wantRec = !!record; S.preT = 0; S.playT = 0;
     if (record) { try { if (window.innerWidth >= 900 && quality !== "ultra") viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2); } catch (e) {} toast("Sharpening the opening frame, then exporting\u2026", 2500); }
-    openPanel(null); setMode("play"); setClean(true);
+    openPanel(null); setMode("play"); setClean(true); setHelpers(false);
     S.playPaused = false; playButtons(false); $("playBar").hidden = false;
   }
-  $("playBtn").onclick = function () { startMove(false); };
-  $("recBtn").onclick = function () { S.recName = "move"; startMove(true); };
+  $("playBtn").onclick = function () { S.returnTo = null; startMove(false); };
+  $("recBtn").onclick = function () { S.returnTo = null; S.recName = S.genName || "move"; startMove(true); };
   function stepPlay(dt) {
     // hold on the opening frame until the map has loaded there (or 6 s at most), so a recording starts sharp
     if (S.playT === 0 && S.preT >= 0) {
@@ -1302,12 +1574,15 @@
     if (S.playT >= 1) {
       var wasRec = S.wantRec; S.wantRec = false;
       exitPlay();
-      if (wasRec) setTimeout(stopRecording, 200); else toast("Move finished. Open Moves to play it again, export a video or save it.");
+      if (wasRec) setTimeout(stopRecording, 200);
+      else if (S.returnTo) openPanel(S.returnTo);           // back to the shot list, ready to try another
+      else toast("Move finished. Open Moves to play it again, export a video or save it.");
     }
   }
   // Leave playback and hand control back, with the drone wherever the camera currently is.
   function exitPlay() {
-    S.playPaused = false; $("playBar").hidden = true;
+    S.playPaused = false; $("playBar").hidden = true; setHelpers(true);
+    if (S.moveCar && S.movePath && S.moveCar.route === car.route) { car.clock = S.moveCar.t0 + S.playT * S.movePath[S.movePath.length - 1].t; car.running = false; carButtons(); }
     S.focal = Math.round(S.focal);
     setMode("fly");                      // (also levels the FPV airframe at this heading if FPV is selected)
     setGimbal(clamp(Math.round(S.gimbal), +$("gimbal").min, +$("gimbal").max));
@@ -1339,6 +1614,7 @@
       S.lon = q.lon; S.lat = q.lat; S.h = q.h; S.heading = ((q.heading % TWO_PI) + TWO_PI) % TWO_PI; S.gimbal = S.gimbalT = q.gimbal;
       if (Math.abs(q.focal - S.focal) > 0.01) { S.focal = q.focal; applyLens(); }
       camera.setView({ destination: Cesium.Cartesian3.fromRadians(q.lon, q.lat, q.h), orientation: { heading: q.heading, pitch: q.gimbal * D2R, roll: q.roll } });
+      if (S.moveCar) carShowOn(S.moveCar.route, S.moveCar.speed, S.moveCar.t0 + t * P[P.length - 1].t);
       return;
     }
     var a = S.moveA, b = S.moveB, e = t * t * (3 - 2 * t);
@@ -1355,7 +1631,7 @@
   var last = performance.now();
   scene.preUpdate.addEventListener(function () {
     var now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
-    monsterStep(dt, now);
+    monsterStep(dt, now); carStep(dt);
     if (S.mode === "play") { stepPlay(dt); return; }
     if (S.mode !== "fly") return;
     IN = readPad() || input;
@@ -1379,6 +1655,11 @@
     var north = (S.vf * Math.cos(S.heading) - S.vr * Math.sin(S.heading)) * dt;
     var east = (S.vf * Math.sin(S.heading) + S.vr * Math.cos(S.heading)) * dt;
     S.lat += north / R; S.lon += east / (R * Math.cos(S.lat)); S.h += S.vu * dt;
+    if (car.lock && car.pos) {                        // camera lock: you fly the position, the camera stays on the car
+      var am = aimAt(S.lon / D2R, S.lat / D2R, S.h, car.pos.lon, car.pos.lat, car.pos.h + 1.2), gl = $("gimbal");
+      S.heading = am.heading; S.vy = 0; S.gimbalT = S.gimbal = clamp(am.gimbal, +gl.min, +gl.max);
+      gl.value = S.gimbalT; $("gimbalLbl").textContent = gimbalText(S.gimbalT);
+    }
     // gimbal eases to its target; FPV adds bank and a nose-down lean with speed
     S.gimbal += (S.gimbalT - S.gimbal) * Math.min(1, dt * 5);
     var bankT = fpv ? clamp(tr * 48 + (S.vy / (sp.y * D2R)) * 16, -60, 60) * D2R : 0;
@@ -1502,6 +1783,270 @@
     if (mon.on) monsterStop(); else { mon.on = true; mon.score = 0; monsterSpawn(); toast(COARSE ? "Monster mode on. Take off, find it, and tap the right stick to fire." : "Monster mode on. Take off, find it, and click or press F to fire.", 4200); }
     this.textContent = mon.on ? "Monster mode on" : "Monster mode off"; this.classList.toggle("on", mon.on); $("monsterNote").hidden = !mon.on;
   };
+
+  // ---------- helper marks in the scene: the current move's line and the target ----------
+  var pathLine = null, targetEnt = null, picking = null;
+  function drawPathLine() {
+    if (pathLine) { viewer.entities.remove(pathLine); pathLine = null; }
+    var P = S.movePath; if (!P || P.length < 2) return;
+    var pos = [], step = Math.max(1, Math.floor(P.length / 300)), last = P[P.length - 1];
+    for (var i = 0; i < P.length - 1; i += step) pos.push(Cesium.Cartesian3.fromRadians(P[i].lon, P[i].lat, P[i].h));
+    pos.push(Cesium.Cartesian3.fromRadians(last.lon, last.lat, last.h));
+    var col = Cesium.Color.fromCssColorString("#f4c20d");
+    pathLine = viewer.entities.add({ polyline: { positions: pos, width: 3, material: col, depthFailMaterial: col.withAlpha(0.35), arcType: Cesium.ArcType.NONE } });
+    pathLine.show = S.mode !== "play";
+  }
+  // Guides are for planning; they're hidden while a move plays so they never end up in a video.
+  function setHelpers(show) {
+    [pathLine, targetEnt, car.line, car.ents && car.ents.dot, typeof homeEntity !== "undefined" ? homeEntity : null].forEach(function (e) { if (e) e.show = show; });
+  }
+
+  // ---------- target shots ----------
+  function pickAt(x, y) {
+    try {
+      var r = scene.canvas.getBoundingClientRect(), p = scene.pickPosition(new Cesium.Cartesian2(x - r.left, y - r.top));
+      if (!p) return null;
+      var g = Cesium.Cartographic.fromCartesian(p);
+      return isFinite(g.longitude + g.latitude + g.height) ? { lon: g.longitude / D2R, lat: g.latitude / D2R, h: g.height } : null;
+    } catch (e) { return null; }
+  }
+  function setTarget(t) {
+    S.target = t;
+    var pos = Cesium.Cartesian3.fromDegrees(t.lon, t.lat, t.h);
+    if (!targetEnt) {
+      targetEnt = viewer.entities.add({ position: pos,
+        point: { pixelSize: 14, color: Cesium.Color.fromCssColorString("#ff4d6d"), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: "Target", font: "600 13px sans-serif", pixelOffset: new Cesium.Cartesian2(0, -18), fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
+                 style: Cesium.LabelStyle.FILL_AND_OUTLINE, disableDepthTestDistance: Number.POSITIVE_INFINITY } });
+    } else { targetEnt.position = pos; }
+    $("targetInfo").textContent = "Target set. Tap a shot below, or pick a different target.";
+    $("pickTarget").textContent = "Change target"; $("pickTarget").classList.remove("go");
+  }
+  $("pickTarget").onclick = function () { picking = "target"; openPanel(null); $("pickBar").hidden = false; };
+  $("pickCancel").onclick = function () { picking = null; $("pickBar").hidden = true; openPanel("shotSheet"); };
+  (function () {
+    var x0 = 0, y0 = 0, t0 = 0, map = $("map");
+    map.addEventListener("pointerdown", function (e) { x0 = e.clientX; y0 = e.clientY; t0 = performance.now(); });
+    map.addEventListener("pointerup", function (e) {
+      if (!picking || Math.hypot(e.clientX - x0, e.clientY - y0) > 10 || performance.now() - t0 > 700) return;   // a tap, not a drag
+      var t = pickAt(e.clientX, e.clientY);
+      if (!t) { toast("Tap a building or the ground, not the sky"); return; }
+      picking = null; $("pickBar").hidden = true; setTarget(t); openPanel("shotSheet");
+    });
+  })();
+  var shotState = { id: null, variant: 0, chips: {} };
+  function chip(box, label, onTap) {
+    var b = document.createElement("button"); b.className = "btn"; b.textContent = label; b.onclick = onTap; $(box).appendChild(b); return b;
+  }
+  SHOTS.forEach(function (s) {
+    shotState.chips[s.id] = chip(s.kind === "fpv" ? "shotsFpv" : "shotsClassic", s.name, function () { shotState.id = s.id; shotState.variant = 0; runShot(); });
+  });
+  // Put a generated path in place as the current move.
+  function setGeneratedMove(path, kind, name, carInfo) {
+    var a = path[0], b = path[path.length - 1];
+    S.movePath = path; S.moveRaw = null; S.moveKind = kind; S.genName = name; S.moveCar = carInfo || null; S.recName = name;
+    S.moveA = { lon: a.lon, lat: a.lat, h: a.h, heading: a.heading, gimbal: a.gimbal, focal: Math.round(a.focal) };
+    S.moveB = { lon: b.lon, lat: b.lat, h: b.h, heading: b.heading, gimbal: b.gimbal, focal: Math.round(b.focal) };
+    S.playDur = clamp(Math.round(b.t), 3, 120); $("dur").value = S.playDur;
+    updateMoveInfo();
+  }
+  // Plain-language summary of the current generated move, with a warning when a real aircraft couldn't fly it.
+  function moveSummary() {
+    var st = pathStats(S.movePath), peak = st.peak * st.dur / S.playDur, kind = S.moveKind || "classic", lim = SHOT_LIMIT[kind];
+    var txt = (S.genName || "Move") + " · " + S.playDur + " s · peak " + (peak * 3.6).toFixed(0) + " km/h";
+    if (S.target && !S.moveCar) txt += " · up to " + Math.max(0, st.top - S.target.h).toFixed(0) + " m above the target";
+    if (peak > lim + 0.5) txt += ". That's faster than " + (kind === "fpv" ? "an FPV drone" : "a camera drone") + " can fly, so lengthen the duration under Moves.";
+    else if (S.target && !S.moveCar && st.top - S.target.h > 122) txt += ". It climbs more than 122 m above the target, so check your height limit.";
+    else txt += ". " + (kind === "fpv" ? "Needs an FPV drone." : "Flyable with a camera drone.");
+    return txt;
+  }
+  function runShot() {
+    if (!S.target) { toast("Pick a target first"); return; }
+    var def = shotById(shotState.id); if (!def) return;
+    var v = shotState.variant, t = S.target, c = camera.positionCartographic, d = llDelta(t.lon, t.lat, c.longitude / D2R, c.latitude / D2R);
+    var o = { size: +$("tgSize").value, bearing: ((Math.atan2(d[0], d[1]) / D2R) + (v * 67) + 720) % 360, dir: v % 2 ? -1 : 1, dScale: [1, 1.35, 0.75][v % 3], hScale: [1, 0.75, 1.4][(v >> 1) % 3],
+              arc: def.id === "orbit" ? [1, 0.5, 0.35][v % 3] : 1, focal: Math.round(S.focal), dur: def.dur };
+    o.dur = Math.min(120, fitDuration(shotPath(def.id, t, o), def.dur, SHOT_LIMIT[def.kind]));
+    setGeneratedMove(shotPath(def.id, t, o), def.kind, def.name, null);
+    $("shotInfo").textContent = moveSummary();
+    Object.keys(shotState.chips).forEach(function (id) { shotState.chips[id].classList.toggle("on", id === def.id); });
+    $("shotVary").disabled = $("shotAgain").disabled = $("shotToMoves").disabled = false;
+    S.returnTo = "shotSheet"; startMove(false);
+  }
+  $("shotVary").onclick = function () { shotState.variant++; runShot(); };
+  $("shotAgain").onclick = function () { if (S.movePath) { S.returnTo = "shotSheet"; startMove(false); } };
+  $("shotToMoves").onclick = $("carToMoves").onclick = function () { renderMoves(); updateMoveInfo(); openPanel("moveSheet"); };
+  $("tgSize").value = clamp(+store.get("tgSize") || 40, 5, 400); $("tgSizeLbl").textContent = $("tgSize").value + " m";
+  $("tgSize").oninput = function () { $("tgSizeLbl").textContent = this.value + " m"; store.set("tgSize", this.value); };
+  $("openShots").onclick = function () { openPanel("shotSheet"); };
+  $("openCar").onclick = function () { openPanel("carSheet"); };
+  $("closeShots").onclick = $("closeCar").onclick = function () { openPanel(null); };
+
+  // ---------- the car ----------
+  var car = { route: null, speed: 50 / 3.6, clock: 0, running: false, lock: false, ents: null, line: null, pos: null, shot: null, variant: 0, chips: {} };
+  function carEnsure() {
+    if (car.ents) return;
+    var zero = Cesium.Cartesian3.fromDegrees(0, 0, 0);
+    car.ents = {
+      body: viewer.entities.add({ position: zero, box: { dimensions: new Cesium.Cartesian3(4.6, 1.9, 1.0), material: Cesium.Color.fromCssColorString("#d8322a") } }),
+      cabin: viewer.entities.add({ position: zero, box: { dimensions: new Cesium.Cartesian3(2.3, 1.7, 0.7), material: Cesium.Color.fromCssColorString("#1b1d22") } }),
+      dot: viewer.entities.add({ position: zero, point: { pixelSize: 9, color: Cesium.Color.fromCssColorString("#35c9ff"), outlineColor: Cesium.Color.BLACK, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY } })
+    };
+  }
+  // Put the car where it would be after driving for `time` seconds along a route.
+  function carShowOn(route, speed, time) {
+    var c = routeAt(route, speed * Math.max(0, time)); car.pos = c; carEnsure();
+    var p1 = Cesium.Cartesian3.fromDegrees(c.lon, c.lat, c.h + 0.75), p2 = Cesium.Cartesian3.fromDegrees(c.lon, c.lat, c.h + 1.55);
+    var q = Cesium.Transforms.headingPitchRollQuaternion(p1, new Cesium.HeadingPitchRoll((c.bearing - 90) * D2R, 0, 0));
+    car.ents.body.position = p1; car.ents.body.orientation = q; car.ents.cabin.position = p2; car.ents.cabin.orientation = q;
+    car.ents.dot.position = Cesium.Cartesian3.fromDegrees(c.lon, c.lat, c.h + 5);
+    car.ents.body.show = car.ents.cabin.show = true;
+  }
+  function carStep(dt) {
+    if (!car.route || S.mode === "play") return;
+    if (car.running) {
+      car.clock += dt;
+      if (car.clock * car.speed >= car.route.len) { car.running = false; carButtons(); toast("The car has reached the end of its route"); }
+    }
+    carShowOn(car.route, car.speed, car.clock);
+  }
+  function fmtDist(m) { return m >= 1000 ? (m / 1000).toFixed(1) + " km" : m.toFixed(0) + " m"; }
+  function carButtons() {
+    var has = !!car.route;
+    $("carGo").disabled = $("carReset").disabled = $("carLock").disabled = $("carRemove").disabled = !has;
+    $("carGo").textContent = car.running ? "Stop the car" : "Start the car"; $("carGo").classList.toggle("on", car.running);
+    $("carLock").textContent = car.lock ? "Camera lock on" : "Camera lock off"; $("carLock").classList.toggle("on", car.lock);
+    $("drawRoute").textContent = has ? "Redraw the route" : "Draw the route"; $("drawRoute").classList.toggle("go", !has);
+    if (has) { var secs = car.route.len / car.speed; $("routeInfo").textContent = "Route: " + fmtDist(car.route.len) + ", " + (secs >= 90 ? (secs / 60).toFixed(1) + " min" : secs.toFixed(0) + " s") + " at this speed."; }
+    else $("routeInfo").textContent = "No route yet. Draw one on the street map.";
+  }
+  function medianSmooth(a) {                       // ignore one-off spikes (a tree over the road), then round off the rest
+    var m = a.map(function (v, i) { var w = a.slice(Math.max(0, i - 4), i + 5).sort(function (x, y) { return x - y; }); return w[w.length >> 1]; });
+    return m.map(function (v, i) { var s = 0, c = 0; for (var j = -3; j <= 3; j++) if (m[i + j] !== undefined) { s += m[i + j]; c++; } return s / c; });
+  }
+  // Read the ground height under every point of the route from the 3D map.
+  function sampleRoute(route) {
+    var base = S.home ? S.home.h : S.target ? S.target.h : Math.max(0, camera.positionCartographic.height - 150);
+    route.pts.forEach(function (p) { p.h = base; });
+    var carts = route.pts.map(function (p) { return Cesium.Cartographic.fromDegrees(p.lon, p.lat); });
+    var skip = car.ents ? [car.ents.body, car.ents.cabin, car.ents.dot] : [];
+    var wait = new Promise(function (res) { setTimeout(function () { res(null); }, 12000); });
+    return Promise.race([scene.sampleHeightMostDetailed(carts, skip), wait]).then(function (res) {
+      if (res && res.length) {
+        var last = base, hs = route.pts.map(function (p, i) { var c = res[i]; if (c && isFinite(c.height)) last = c.height; return last; });
+        medianSmooth(hs).forEach(function (hgt, i) { route.pts[i].h = hgt; });
+      }
+      return route;
+    }, function () { return route; });
+  }
+  function setCarRoute(route) {
+    car.route = route; car.clock = 0; car.running = false;
+    if (car.line) viewer.entities.remove(car.line);
+    var col = Cesium.Color.fromCssColorString("#35c9ff");
+    car.line = viewer.entities.add({ polyline: { positions: route.pts.map(function (p) { return Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.h + 0.6); }), width: 3, material: col, depthFailMaterial: col.withAlpha(0.3), arcType: Cesium.ArcType.NONE } });
+    carShowOn(route, car.speed, 0); carButtons();
+  }
+  $("carSpeed").value = clamp(+store.get("carSpeed") || 50, 10, 160); car.speed = +$("carSpeed").value / 3.6; $("carSpeedLbl").textContent = $("carSpeed").value + " km/h";
+  $("carSpeed").oninput = function () { car.speed = +this.value / 3.6; $("carSpeedLbl").textContent = this.value + " km/h"; store.set("carSpeed", this.value); carButtons(); };
+  $("carGo").onclick = function () {
+    if (!car.route) return;
+    if (!car.running && car.clock * car.speed >= car.route.len - 1) car.clock = 0;
+    car.running = !car.running; carButtons();
+  };
+  $("carReset").onclick = function () { car.clock = 0; car.running = false; carButtons(); };
+  $("carLock").onclick = function () { car.lock = !car.lock; carButtons(); if (car.lock) toast("Camera lock on. The sticks move the drone; the camera stays on the car."); };
+  $("carRemove").onclick = function () {
+    if (car.ents) { viewer.entities.remove(car.ents.body); viewer.entities.remove(car.ents.cabin); viewer.entities.remove(car.ents.dot); car.ents = null; }
+    if (car.line) { viewer.entities.remove(car.line); car.line = null; }
+    car.route = null; car.running = false; car.lock = false; car.pos = null; ed.taps = []; carButtons();
+    $("carVary").disabled = $("carAgain").disabled = $("carToMoves").disabled = true;
+  };
+  CAR_SHOTS.forEach(function (s) { car.chips[s.id] = chip("carShots", s.name, function () { car.shot = s.id; car.variant = 0; runCarShot(); }); });
+  function runCarShot() {
+    if (!car.route) { toast("Draw the car's route first"); return; }
+    var def = carShotById(car.shot); if (!def) return;
+    var v = car.variant, o = { dur: 15, side: v % 2 ? -1 : 1, sc: [1, 1.5, 0.7][v % 3], focal: Math.round(S.focal) };
+    car.running = false; carButtons();
+    setGeneratedMove(carShotPath(def.id, car.route, car.speed, o), def.kind, def.name + " on the car", { route: car.route, speed: car.speed, t0: 0 });
+    $("carInfo").textContent = moveSummary();
+    Object.keys(car.chips).forEach(function (id) { car.chips[id].classList.toggle("on", id === def.id); });
+    $("carVary").disabled = $("carAgain").disabled = $("carToMoves").disabled = false;
+    S.returnTo = "carSheet"; startMove(false);
+  }
+  $("carVary").onclick = function () { car.variant++; runCarShot(); };
+  $("carAgain").onclick = function () { if (S.movePath && S.moveCar) { S.returnTo = "carSheet"; startMove(false); } };
+
+  // ---------- drawing the route on a street map ----------
+  var ed = { lon: 0, lat: 0, z: 16, taps: [], tiles: {}, drag: null };
+  function tilesInto(layer, cache, lonD, latD, z, W, H) {
+    var p = worldPx(lonD, clamp(latD, -85, 85), z), ox = p.x - W / 2, oy = p.y - H / 2, n = Math.pow(2, z), seen = {};
+    for (var tx = Math.floor(ox / 256); tx <= Math.floor((ox + W) / 256); tx++) {
+      for (var ty = Math.floor(oy / 256); ty <= Math.floor((oy + H) / 256); ty++) {
+        if (ty < 0 || ty >= n) continue;
+        var key = z + "/" + (((tx % n) + n) % n) + "/" + ty, id = key + "@" + tx, img = cache[id];
+        if (!img) { img = document.createElement("img"); img.alt = ""; img.draggable = false; img.src = "https://tile.openstreetmap.org/" + key + ".png"; layer.appendChild(img); cache[id] = img; }
+        img.style.left = Math.round(tx * 256 - ox) + "px"; img.style.top = Math.round(ty * 256 - oy) + "px"; seen[id] = true;
+      }
+    }
+    Object.keys(cache).forEach(function (id) { if (!seen[id]) { layer.removeChild(cache[id]); delete cache[id]; } });
+    return { ox: ox, oy: oy };
+  }
+  function edDraw() {
+    var box = $("routeEd"), W = box.clientWidth, H = box.clientHeight, o = tilesInto($("routeTiles"), ed.tiles, ed.lon, ed.lat, ed.z, W, H), len = 0;
+    var px = ed.taps.map(function (t) { var p = worldPx(t[0], t[1], ed.z); return [p.x - o.ox, p.y - o.oy]; });
+    for (var i = 1; i < ed.taps.length; i++) { var d = llDelta(ed.taps[i - 1][0], ed.taps[i - 1][1], ed.taps[i][0], ed.taps[i][1]); len += Math.hypot(d[0], d[1]); }
+    $("routeLine").setAttribute("points", px.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" "));
+    $("routeDots").innerHTML = px.map(function (p, ix) { return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + (ix ? 6 : 9) + '" fill="' + (ix ? "#ffffff" : "#35c96b") + '" stroke="#17130a" stroke-width="2"/>'; }).join("");
+    var c = camera.positionCartographic, cp = worldPx(c.longitude / D2R, c.latitude / D2R, ed.z), dm = $("routeDrone").style;
+    dm.left = (cp.x - o.ox) + "px"; dm.top = (cp.y - o.oy) + "px";
+    $("routeHint").textContent = ed.taps.length === 0 ? "Tap where the car starts, then tap along the road" : ed.taps.length === 1 ? "Start set (green). Tap along the road to draw the route"
+      : "Route so far: " + fmtDist(len) + ". Keep tapping to extend it, or use this route.";
+    $("routeDone").disabled = ed.taps.length < 2;
+  }
+  function edOpen() {
+    var c = camera.positionCartographic, first = ed.taps[0];
+    ed.lon = first ? first[0] : S.target ? S.target.lon : c.longitude / D2R; ed.lat = first ? first[1] : S.target ? S.target.lat : c.latitude / D2R;
+    openPanel(null); $("routeEd").hidden = false; edDraw();
+  }
+  $("drawRoute").onclick = edOpen;
+  (function () {
+    var box = $("routeEd");
+    box.addEventListener("pointerdown", function (e) {
+      if (e.target.closest && e.target.closest("button")) return;
+      ed.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, lon: ed.lon, lat: ed.lat, moved: false };
+    });
+    box.addEventListener("pointermove", function (e) {
+      var g = ed.drag; if (!g || e.pointerId !== g.id) return;
+      var dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (!g.moved && Math.hypot(dx, dy) < 8) return;
+      g.moved = true;
+      var c0 = worldPx(g.lon, g.lat, ed.z), ll = worldLL(c0.x - dx, c0.y - dy, ed.z); ed.lon = ll.lon; ed.lat = ll.lat; edDraw();
+    });
+    function up(e) {
+      var g = ed.drag; if (!g || e.pointerId !== g.id) return; ed.drag = null;
+      if (g.moved || e.type === "pointercancel") return;
+      var r = box.getBoundingClientRect(), c0 = worldPx(ed.lon, ed.lat, ed.z), ll = worldLL(c0.x - r.width / 2 + (e.clientX - r.left), c0.y - r.height / 2 + (e.clientY - r.top), ed.z);
+      ed.taps.push([ll.lon, ll.lat]); edDraw();
+    }
+    box.addEventListener("pointerup", up); box.addEventListener("pointercancel", up);
+    box.addEventListener("wheel", function (e) { e.preventDefault(); ed.z = clamp(ed.z + (e.deltaY < 0 ? 1 : -1), 11, 19); edDraw(); }, { passive: false });
+  })();
+  $("routeIn").onclick = function () { ed.z = clamp(ed.z + 1, 11, 19); edDraw(); };
+  $("routeOut").onclick = function () { ed.z = clamp(ed.z - 1, 11, 19); edDraw(); };
+  $("routeUndo").onclick = function () { ed.taps.pop(); edDraw(); };
+  $("routeClear").onclick = function () { ed.taps = []; edDraw(); };
+  $("routeCancel").onclick = function () { $("routeEd").hidden = true; ed.taps = car.route ? car.route.taps.slice() : []; openPanel("carSheet"); };
+  $("routeDone").onclick = function () {
+    if (ed.taps.length < 2) { toast("Tap at least two points"); return; }
+    var route = routeBuild(ed.taps); route.taps = ed.taps.slice();
+    $("routeEd").hidden = true; toast("Reading the road from the 3D map…", 2500);
+    sampleRoute(route).then(function (r) {
+      setCarRoute(r); openPanel("carSheet");
+      if (S.mode === "scout") flyAround(r.pts[0].lon, r.pts[0].lat, r.pts[0].h, 320, -0.6, 1.6);
+    });
+  };
+  window.addEventListener("resize", function () { if (!$("routeEd").hidden) edDraw(); });
+  carButtons();
 
   // ---------- top-down map ----------
   var mini = { on: false, z: 16, tiles: {} };
@@ -1719,7 +2264,7 @@
   $("vidClose").onclick = function () { $("vid").hidden = true; try { $("vidPlayer").pause(); } catch (e) {} };
 
   // Only one panel is open at a time.
-  var PANELS = ["sheet", "lightSheet", "moveSheet"];
+  var PANELS = ["sheet", "lightSheet", "moveSheet", "shotSheet", "carSheet"];
   function openPanel(id) { PANELS.forEach(function (p) { $(p).hidden = p !== id; }); $("customRow").hidden = true; }
   $("menuBtn").onclick = function () { if (!$("sheet").hidden) { openPanel(null); return; } openPanel("sheet"); };
   $("lightBtn").onclick = function () { if (!$("lightSheet").hidden) { openPanel(null); return; } buildSunButtons(); openPanel("lightSheet"); };
