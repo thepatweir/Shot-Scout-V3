@@ -410,7 +410,7 @@
   <div class="row" style="margin-top:8px"><span class="note">Stick sensitivity</span><input id="fpvRate" type="range" min="40" max="160" step="5" value="100" aria-label="FPV stick sensitivity"><b id="fpvRateLbl">100%</b></div>
 
   <h3>Extras</h3>
-  <div class="row"><button class="btn" id="flyInBtn">Fly-in on takeoff: on</button><button class="btn" id="monsterBtn">Monster mode off</button></div>
+  <div class="row"><button class="btn" id="flyInBtn">Fly-in on takeoff: on</button><button class="btn" id="monsterBtn">Monster mode off</button><button class="btn" id="yetiBtn">Yeti mode off</button></div>
   <div class="note" id="monsterNote" hidden>A monster is loose near your drone. While flying, tap the right stick to fire. On a computer, click or press F.</div>
 
   <h3>Airspace</h3>
@@ -419,7 +419,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.14 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.15 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -642,7 +642,7 @@
     <li><b>Export</b><span>Preview video, a three-frame storyboard, or a flight plan PDF with airspace.</span></li>
   </ul>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.14</div>
+  <div class="tap">TAP TO START · VERSION 3.15</div>
 </div>
 <div id="toast"></div>
 
@@ -1999,7 +1999,84 @@
   }
 
   // ---------- monster mode (an Extras toy): a cartoon monster stomps around; shoot it while flying ----------
-  var mon = { on: false, ent: null, c: null, x: 0, y: 0, dir: 0, turn: 0, hp: 5, score: 0, ground: null, frames: null, frame: 0, frameT: 0, sampleT: 0, flash: 0, respawn: 0, shots: [] };
+  var mon = { on: false, ent: null, c: null, x: 0, y: 0, dir: 0, turn: 0, hp: 5, score: 0, ground: null, frames: null, frame: 0, frameT: 0, sampleT: 0, flash: 0, respawn: 0, shots: [], fx: [], kind: "monster", art: {} };
+  var CREATURE = { monster: { name: "Monster", speed: 7, size: 64, n: 2, ft: 0.32, reach: 260, body: 30, hit: 36 },
+                   yeti:    { name: "Yeti",    speed: 17, size: 88, n: 4, ft: 0.1,  reach: 340, body: 42, hit: 46 } };
+  // Our own yeti (an original design): shaggy white fur, an ice-blue face, a red scarf, and a four-step run with pumping arms and legs.
+  function yetiArt(f) {
+    var cv = document.createElement("canvas"); cv.width = cv.height = 256;
+    var g = cv.getContext("2d"), ph = f / 4 * TWO_PI + 0.4, sw = Math.sin(ph), bob = Math.abs(Math.cos(ph)) * 7, INK = "#1d2a44", FUR = "#f4f8ff", SHADE = "#cfdcf2";
+    g.lineJoin = "round"; g.lineCap = "round";
+    function limb(x0, y0, ang, len, w, fill, foot) {              // a furry limb from a joint, swinging by an angle from straight down
+      var x1 = x0 + Math.sin(ang) * len, y1 = y0 + Math.cos(ang) * len;
+      g.strokeStyle = INK; g.lineWidth = w + 9; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      g.strokeStyle = fill; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      if (foot) { g.beginPath(); g.ellipse(x1 + foot * 10, y1 + 4, 23, 12, 0, 0, TWO_PI); g.fillStyle = fill; g.fill(); g.lineWidth = 4.5; g.strokeStyle = INK; g.stroke(); }
+      else { g.beginPath(); g.arc(x1, y1, w * 0.62, 0, TWO_PI); g.fillStyle = fill; g.fill(); g.lineWidth = 4.5; g.strokeStyle = INK; g.stroke(); }
+    }
+    function shaggy(cx, cy, rx, ry, fill) {                       // an oval with a tufted edge
+      g.beginPath();
+      for (var i = 0; i <= 44; i++) { var a = i / 44 * TWO_PI, k = 1 + (i % 2 ? 0.075 : -0.02), x = cx + Math.cos(a) * rx * k, y = cy + Math.sin(a) * ry * k; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+      g.closePath(); g.fillStyle = fill; g.fill(); g.lineWidth = 5; g.strokeStyle = INK; g.stroke();
+    }
+    var top = 12 - bob;
+    limb(104, 168 + top, -sw * 0.75, 52, 30, SHADE, -1);                                     // far leg
+    limb(60, 96 + top, Math.PI - 0.55 + sw * 0.5, 62, 24, SHADE, 0);                          // far arm, raised and pumping
+    shaggy(128, 122 + top, 62, 78, FUR);                                                     // body and head in one shaggy shape
+    g.beginPath(); g.ellipse(128, 76 + top, 34, 27, 0, 0, TWO_PI); g.fillStyle = "#5d86c8"; g.fill(); g.lineWidth = 4.5; g.strokeStyle = INK; g.stroke();       // face
+    g.fillStyle = "#ffe45c"; g.beginPath(); g.ellipse(115, 71 + top, 7, 8, 0, 0, TWO_PI); g.ellipse(141, 71 + top, 7, 8, 0, 0, TWO_PI); g.fill(); g.lineWidth = 3; g.stroke();
+    g.fillStyle = INK; g.beginPath(); g.arc(116, 72 + top, 2.6, 0, TWO_PI); g.arc(142, 72 + top, 2.6, 0, TWO_PI); g.fill();
+    g.beginPath(); g.moveTo(112, 88 + top); g.quadraticCurveTo(128, 100 + top + (f % 2) * 4, 144, 88 + top); g.lineWidth = 4; g.stroke();                       // open-mouthed roar
+    g.fillStyle = "#fff"; g.beginPath(); g.moveTo(118, 90 + top); g.lineTo(122, 98 + top); g.lineTo(126, 91 + top); g.moveTo(130, 91 + top); g.lineTo(134, 98 + top); g.lineTo(138, 90 + top); g.fill(); g.lineWidth = 2; g.stroke();
+    g.beginPath(); g.moveTo(78, 108 + top); g.quadraticCurveTo(128, 126 + top, 178, 108 + top); g.lineWidth = 15; g.strokeStyle = INK; g.stroke(); g.lineWidth = 9; g.strokeStyle = "#e23b2e"; g.stroke();   // scarf
+    g.beginPath(); g.moveTo(170, 112 + top); g.quadraticCurveTo(200 + sw * 8, 118 + top - sw * 10, 216, 104 + top + sw * 14); g.lineWidth = 15; g.strokeStyle = INK; g.stroke(); g.lineWidth = 9; g.strokeStyle = "#e23b2e"; g.stroke();
+    limb(152, 168 + top, sw * 0.75, 52, 30, FUR, 1);                                         // near leg
+    limb(196, 96 + top, Math.PI + 0.55 - sw * 0.5, 62, 24, FUR, 0);                           // near arm
+    return cv.toDataURL("image/png");
+  }
+  // Explosion frames: a fireball that swells, breaks up and turns to smoke.
+  function boomArt(k, n) {
+    var cv = document.createElement("canvas"); cv.width = cv.height = 128;
+    var g = cv.getContext("2d"), t = k / (n - 1), seed = 7 + k * 13;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    for (var i = 0; i < 16; i++) {
+      var a = rnd() * TWO_PI, d = (10 + rnd() * 34) * (0.35 + t * 0.9), r = (14 + rnd() * 16) * (1 - t * 0.35), x = 64 + Math.cos(a) * d, y = 64 + Math.sin(a) * d, gr = g.createRadialGradient(x, y, 0, x, y, r);
+      if (t < 0.55) { gr.addColorStop(0, "rgba(255,255,235," + (1 - t) + ")"); gr.addColorStop(0.35, "rgba(255,205,70," + (0.95 - t * 0.5) + ")"); gr.addColorStop(0.75, "rgba(255,96,20," + (0.8 - t * 0.6) + ")"); gr.addColorStop(1, "rgba(120,20,0,0)"); }
+      else { var s = Math.round(70 - t * 30); gr.addColorStop(0, "rgba(255,150,60," + (1.1 - t) * 0.8 + ")"); gr.addColorStop(0.5, "rgba(" + s + "," + s + "," + s + "," + (1.15 - t) * 0.8 + ")"); gr.addColorStop(1, "rgba(30,30,30,0)"); }
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TWO_PI); g.fill();
+    }
+    return cv.toDataURL("image/png");
+  }
+  var boomFrames = null, FAR = Number.POSITIVE_INFINITY;
+  function boom(pos, size, sparks, delay) {
+    if (!boomFrames) { boomFrames = []; for (var k = 0; k < 7; k++) boomFrames.push(boomArt(k, 7)); }
+    mon.fx.push({ t: -(delay || 0), dur: 0.55 + size / 220, size: size, ent: viewer.entities.add({ position: Cesium.Cartesian3.clone(pos), billboard: { image: boomFrames[0], width: size * 0.3, height: size * 0.3, sizeInMeters: true, disableDepthTestDistance: FAR } }) });
+    for (var i = 0; i < (sparks || 0); i++) {
+      var a = Math.random() * TWO_PI, up = 0.2 + Math.random() * 0.9, sp = size * (0.9 + Math.random() * 1.3), east = Cesium.Cartesian3.normalize(Cesium.Cartesian3.cross(Cesium.Cartesian3.UNIT_Z, pos, new Cesium.Cartesian3()), new Cesium.Cartesian3()),
+          upv = Cesium.Cartesian3.normalize(pos, new Cesium.Cartesian3()), north = Cesium.Cartesian3.cross(upv, east, new Cesium.Cartesian3()), v = new Cesium.Cartesian3();
+      Cesium.Cartesian3.multiplyByScalar(east, Math.cos(a) * sp, v);
+      Cesium.Cartesian3.add(v, Cesium.Cartesian3.multiplyByScalar(north, Math.sin(a) * sp, new Cesium.Cartesian3()), v);
+      Cesium.Cartesian3.add(v, Cesium.Cartesian3.multiplyByScalar(upv, up * sp, new Cesium.Cartesian3()), v);
+      mon.fx.push({ t: 0, dur: 0.5 + Math.random() * 0.5, spark: true, pos: Cesium.Cartesian3.clone(pos), vel: v, upv: upv,
+        ent: viewer.entities.add({ position: Cesium.Cartesian3.clone(pos), point: { pixelSize: 7, color: Cesium.Color.fromCssColorString(Math.random() < 0.5 ? "#ffd34d" : "#ff7a1a"), disableDepthTestDistance: FAR } }) });
+    }
+  }
+  function fxStep(dt) {
+    for (var i = mon.fx.length - 1; i >= 0; i--) {
+      var x = mon.fx[i]; x.t += dt; x.ent.show = x.t >= 0; if (x.t < 0) continue; var t = x.t / x.dur;
+      if (t >= 1) { viewer.entities.remove(x.ent); mon.fx.splice(i, 1); continue; }
+      if (x.spark) {
+        Cesium.Cartesian3.add(x.vel, Cesium.Cartesian3.multiplyByScalar(x.upv, -60 * dt, new Cesium.Cartesian3()), x.vel);
+        Cesium.Cartesian3.add(x.pos, Cesium.Cartesian3.multiplyByScalar(x.vel, dt, new Cesium.Cartesian3()), x.pos);
+        x.ent.position = Cesium.Cartesian3.clone(x.pos); x.ent.point.pixelSize = 7 * (1 - t) + 1;
+      } else {
+        var e = 1 - (1 - t) * (1 - t), w = x.size * (0.3 + 0.7 * e), fr = Math.min(6, Math.floor(t * 7));
+        if (fr !== x.fr) { x.fr = fr; x.ent.billboard.image = boomFrames[fr]; }
+        x.ent.billboard.width = w; x.ent.billboard.height = w;
+      }
+    }
+  }
+
   // Our own creature: a round teal one-eyed monster with little horns and stompy feet. Two drawings make the stomp.
   function monsterArt(step) {
     var cv = document.createElement("canvas"); cv.width = cv.height = 256;
@@ -2025,59 +2102,88 @@
     mon.c = S.home ? { lon: S.home.lon, lat: S.home.lat, h: S.home.h } : { lon: p.longitude / D2R, lat: p.latitude / D2R, h: Math.max(0, p.height - 120) };
     var a = Math.random() * TWO_PI, d = 140 + Math.random() * 90;
     mon.x = Math.sin(a) * d; mon.y = Math.cos(a) * d; mon.dir = Math.random() * TWO_PI; mon.turn = 2; mon.hp = 5; mon.ground = null; mon.respawn = 0; mon.flash = 0;
-    if (!mon.frames) mon.frames = [monsterArt(0), monsterArt(1)];
+    if (!mon.art[mon.kind]) mon.art[mon.kind] = mon.kind === "yeti" ? [yetiArt(0), yetiArt(1), yetiArt(2), yetiArt(3)] : [monsterArt(0), monsterArt(1)];
+    mon.frames = mon.art[mon.kind]; mon.frame = 0;
+    var CR = CREATURE[mon.kind];
     var q = monsterPlace(), pos = Cesium.Cartesian3.fromDegrees(q.lon, q.lat, q.h);
     if (!mon.ent) {
       mon.ent = viewer.entities.add({ position: pos, billboard: { image: mon.frames[0], width: 64, height: 64, sizeInMeters: true, verticalOrigin: Cesium.VerticalOrigin.BOTTOM } });
     }
-    mon.ent.position = pos; mon.ent.show = true;
+    mon.ent.position = pos; mon.ent.show = true; mon.ent.billboard.image = mon.frames[0]; mon.ent.billboard.width = CR.size; mon.ent.billboard.height = CR.size; mon.ent.billboard.color = Cesium.Color.WHITE;
   }
   function monsterStop() {
     mon.on = false; if (mon.ent) mon.ent.show = false;
-    mon.shots.forEach(function (s) { viewer.entities.remove(s.ent); }); mon.shots = [];
+    mon.shots.forEach(function (s) { viewer.entities.remove(s.ent); if (s.trail) viewer.entities.remove(s.trail); }); mon.shots = [];
+    mon.fx.forEach(function (x) { viewer.entities.remove(x.ent); }); mon.fx = [];
   }
   function monsterFire() {
     if (!mon.on || S.mode !== "fly" || mon.shots.length >= 6) return;
     var dir = Cesium.Cartesian3.clone(camera.directionWC), pos = Cesium.Cartesian3.clone(camera.positionWC);
     Cesium.Cartesian3.add(pos, Cesium.Cartesian3.multiplyByScalar(dir, 4, new Cesium.Cartesian3()), pos);
-    var ent = viewer.entities.add({ position: pos, point: { pixelSize: 10, color: Cesium.Color.fromCssColorString("#ff7a1a"), outlineColor: Cesium.Color.fromCssColorString("#fff2c2"), outlineWidth: 2 } });
-    mon.shots.push({ pos: pos, vel: Cesium.Cartesian3.multiplyByScalar(dir, 170, new Cesium.Cartesian3()), life: 3.5, ent: ent });
+    var ent = viewer.entities.add({ position: pos, point: { pixelSize: 9, color: Cesium.Color.fromCssColorString("#fff6d8"), outlineColor: Cesium.Color.fromCssColorString("#ff8a1f"), outlineWidth: 3 } });
+    var glow; try { glow = new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.3, taperPower: 0.6, color: Cesium.Color.fromCssColorString("#ffb347") }); } catch (e) { glow = Cesium.Color.fromCssColorString("#ffb347"); }
+    var trail = viewer.entities.add({ polyline: { positions: [Cesium.Cartesian3.clone(pos), Cesium.Cartesian3.clone(pos)], width: 9, material: glow, arcType: Cesium.ArcType.NONE } });
+    mon.fire = (mon.fire || 0) + 1;                                   // alternate left and right, like two launch rails
+    var side = Cesium.Cartesian3.multiplyByScalar(camera.rightWC || Cesium.Cartesian3.ZERO, (mon.fire % 2 ? 1 : -1) * 1.6, new Cesium.Cartesian3()); Cesium.Cartesian3.add(pos, side, pos);
+    mon.shots.push({ pos: pos, dir: dir, vel: Cesium.Cartesian3.multiplyByScalar(dir, 120, new Cesium.Cartesian3()), life: 3.2, age: 0, ent: ent, trail: trail });
   }
   function monsterStep(dt, now) {
     if (!mon.on) return;
-    var i, s;
+    var i, s, CR = CREATURE[mon.kind];
+    fxStep(dt);
     if (mon.respawn > 0) { mon.respawn -= dt; if (mon.respawn <= 0) monsterSpawn(); }
     else {
       mon.turn -= dt;
-      if (Math.hypot(mon.x, mon.y) > 260) { mon.dir = Math.atan2(-mon.x, -mon.y); mon.turn = 2.5; }      // wandered too far: head back
-      else if (mon.turn <= 0) { mon.dir += (Math.random() - 0.5) * 2.2; mon.turn = 2 + Math.random() * 3; }
-      mon.x += Math.sin(mon.dir) * 7 * dt; mon.y += Math.cos(mon.dir) * 7 * dt;
+      if (Math.hypot(mon.x, mon.y) > CR.reach) { mon.dir = Math.atan2(-mon.x, -mon.y); mon.turn = 2.5; }      // wandered too far: head back
+      else if (mon.turn <= 0) {
+        mon.dir += (Math.random() - 0.5) * 2.2; mon.turn = 2 + Math.random() * 3;
+        if (mon.kind === "yeti" && S.mode === "fly" && Math.random() < 0.55) {            // the yeti often charges at wherever the drone is
+          var ddx = (S.lon / D2R - mon.c.lon) * D2R * R * Math.cos(mon.c.lat * D2R), ddy = (S.lat / D2R - mon.c.lat) * D2R * R;
+          if (Math.hypot(ddx, ddy) < CR.reach) mon.dir = Math.atan2(ddx - mon.x, ddy - mon.y);
+        }
+      }
+      var pace = mon.flash > 0 ? 0.25 : 1;                                                // a hit staggers it for a moment
+      mon.x += Math.sin(mon.dir) * CR.speed * pace * dt; mon.y += Math.cos(mon.dir) * CR.speed * pace * dt;
       var q = monsterPlace();
       if (now - mon.sampleT > 900) {
         mon.sampleT = now;
         try { var gh = scene.sampleHeight(Cesium.Cartographic.fromDegrees(q.lon, q.lat), [mon.ent]); if (isFinite(gh)) mon.ground = gh; } catch (e) {}
       }
-      mon.frameT += dt; if (mon.frameT > 0.32) { mon.frameT = 0; mon.frame = 1 - mon.frame; mon.ent.billboard.image = mon.frames[mon.frame]; }
+      mon.frameT += dt; if (mon.frameT > CR.ft) { mon.frameT = 0; mon.frame = (mon.frame + 1) % CR.n; mon.ent.billboard.image = mon.frames[mon.frame]; }
       mon.ent.position = Cesium.Cartesian3.fromDegrees(q.lon, q.lat, q.h);
       if (mon.flash > 0) { mon.flash -= dt; mon.ent.billboard.color = mon.flash > 0 ? Cesium.Color.fromCssColorString("#ff5a4a") : Cesium.Color.WHITE; }
     }
-    var body = mon.respawn > 0 ? null : (function () { var q2 = monsterPlace(); return Cesium.Cartesian3.fromDegrees(q2.lon, q2.lat, q2.h + 30); })();
+    var body = mon.respawn > 0 ? null : (function () { var q2 = monsterPlace(); return Cesium.Cartesian3.fromDegrees(q2.lon, q2.lat, q2.h + CR.body); })();
     for (i = mon.shots.length - 1; i >= 0; i--) {
-      s = mon.shots[i]; s.life -= dt;
+      s = mon.shots[i]; s.life -= dt; s.age += dt;
+      var speed = Math.min(300, 120 + s.age * 420);                                       // the motor kicks in: it accelerates away from the drone
+      Cesium.Cartesian3.multiplyByScalar(s.dir, speed, s.vel);
       Cesium.Cartesian3.add(s.pos, Cesium.Cartesian3.multiplyByScalar(s.vel, dt, new Cesium.Cartesian3()), s.pos);
       s.ent.position = Cesium.Cartesian3.clone(s.pos);
-      var hit = body && Cesium.Cartesian3.distance(s.pos, body) < 36;
+      s.trail.polyline.positions = [Cesium.Cartesian3.subtract(s.pos, Cesium.Cartesian3.multiplyByScalar(s.dir, Math.min(46, 8 + s.age * 150), new Cesium.Cartesian3()), new Cesium.Cartesian3()), Cesium.Cartesian3.clone(s.pos)];
+      var hit = body && Cesium.Cartesian3.distance(s.pos, body) < CR.hit;
       if (hit) {
-        mon.hp--; mon.flash = 0.25;
-        if (mon.hp <= 0) { mon.score++; mon.ent.show = false; mon.respawn = 3.5; toast("Monster down! The city is safe, for a few seconds.", 2600); }
-      }
-      if (hit || s.life <= 0) { viewer.entities.remove(s.ent); mon.shots.splice(i, 1); }
+        mon.hp--; mon.flash = 0.3; boom(s.pos, 52, 8);
+        if (mon.hp <= 0) {
+          mon.score++; mon.ent.show = false; mon.respawn = 3.5;
+          boom(body, 170, 26); boom(Cesium.Cartesian3.add(body, Cesium.Cartesian3.multiplyByScalar(s.dir, -14, new Cesium.Cartesian3()), new Cesium.Cartesian3()), 110, 10, 0.16); boom(body, 230, 0, 0.3);
+          toast(mon.kind === "yeti" ? "Yeti down! It'll be back." : "Monster down! The city is safe, for a few seconds.", 2600);
+        }
+      } else if (s.life <= 0) boom(s.pos, 20, 0);
+      if (hit || s.life <= 0) { viewer.entities.remove(s.ent); viewer.entities.remove(s.trail); mon.shots.splice(i, 1); }
     }
   }
-  $("monsterBtn").onclick = function () {
-    if (mon.on) monsterStop(); else { mon.on = true; mon.score = 0; monsterSpawn(); toast(COARSE ? "Monster mode on. Take off, find it, and tap the right stick to fire." : "Monster mode on. Take off, find it, and click or press F to fire.", 4200); }
-    this.textContent = mon.on ? "Monster mode on" : "Monster mode off"; this.classList.toggle("on", mon.on); $("monsterNote").hidden = !mon.on;
-  };
+  function creatureMode(kind) {
+    var same = mon.on && mon.kind === kind;
+    if (mon.on) monsterStop();
+    if (!same) { mon.kind = kind; mon.on = true; mon.score = 0; monsterSpawn();
+      toast(CREATURE[kind].name + " mode on. " + (COARSE ? "Take off, find it, and tap the right stick to fire." : "Take off, find it, and click or press F to fire."), 4200); }
+    $("monsterBtn").textContent = "Monster mode " + (mon.on && mon.kind === "monster" ? "on" : "off"); $("monsterBtn").classList.toggle("on", mon.on && mon.kind === "monster");
+    $("yetiBtn").textContent = "Yeti mode " + (mon.on && mon.kind === "yeti" ? "on" : "off"); $("yetiBtn").classList.toggle("on", mon.on && mon.kind === "yeti");
+    $("monsterNote").hidden = !mon.on; $("monsterNote").textContent = mon.on ? (mon.kind === "yeti" ? "A yeti is running around near your drone, and it likes to charge at you." : "A monster is loose near your drone.") + " While flying, tap the right stick to fire. On a computer, click or press F." : "";
+  }
+  $("monsterBtn").onclick = function () { creatureMode("monster"); };
+  $("yetiBtn").onclick = function () { creatureMode("yeti"); };
 
   // ---------- helper marks in the scene: the current move's line and the target ----------
   var pathLine = null, targetEnt = null, picking = null;
@@ -3303,7 +3409,7 @@
     ["How do I make it look sharper?", "In Settings, set Picture quality to Ultra. It uses more battery and data. Fast suits older phones.", "quality sharp ultra resolution graphics fast performance slow"],
     ["How do I add this to my home screen?", "On an iPhone, open the page in Safari, tap Share, then Add to Home Screen. On Android, use the browser menu and choose Add to Home screen or Install.", "home screen install app icon iphone android"],
     ["How do I turn off the fast fly-in at takeoff?", "Open Settings and look under Extras. Tap Fly-in on takeoff to turn it off; Take off here then puts you straight above the circle.", "fly in intro takeoff race dive animation fast skip turn off"],
-    ["What is Monster mode?", "A toy under Settings, Extras. A cartoon monster stomps around near your drone. While flying, tap the right stick to fire, or click or press F on a computer.", "monster mode game shoot fire extras"],
+    ["What are Monster mode and Yeti mode?", "Toys under Settings, Extras. Monster mode has a cartoon monster stomping around near your drone. Yeti mode has a yeti that runs fast and charges at you. While flying, tap the right stick to fire missiles, or click or press F on a computer. Five hits brings it down.", "monster yeti mode game shoot fire missile explosion extras"],
     ["The map won't load at all.", "Check your connection, then reload. If it still fails, the map access token may have expired or run out of its monthly allowance. You can enter a different one under Settings, Map access.", "map not loading black blank token access quota error"]
   ];
   function helpRender() {
@@ -3385,7 +3491,7 @@
       html = "Scouting · " + lens + "<br>" + sun;
     }
     if (air.key) html += "<br>Airspace <b>" + (air.res ? air.res.hud.replace(/[<>&]/g, "") : air.err ? "unavailable" : "checking") + "</b>";
-    if (mon.on) html += "<br>Monster " + (mon.respawn > 0 ? "<b>down!</b>" : "<b>" + "\u25cf".repeat(Math.max(0, mon.hp)) + "\u25cb".repeat(Math.max(0, 5 - mon.hp)) + "</b>") + " · Score <b>" + mon.score + "</b>";
+    if (mon.on) html += "<br>" + CREATURE[mon.kind].name + " " + (mon.respawn > 0 ? "<b>down!</b>" : "<b>" + "\u25cf".repeat(Math.max(0, mon.hp)) + "\u25cb".repeat(Math.max(0, 5 - mon.hp)) + "</b>") + " · Score <b>" + mon.score + "</b>";
     $("hud").innerHTML = html;
   }, 200);
 
