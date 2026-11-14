@@ -219,6 +219,25 @@
   #padMon .bar i { position:absolute; top:0; bottom:0; left:50%; width:0; background:var(--accent); }
   #padMon .ax.used { color:var(--ink); }
   #splash .upd { position:absolute; bottom:calc(env(safe-area-inset-bottom, 0px) + 64px); left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--dim); font-size:13px; }
+  /* flight plan */
+  body.looking, body.looking * { cursor:none !important; }
+  #planEd { position:fixed; inset:0; z-index:12; background:#1b1d20; touch-action:none; overflow:hidden; }
+  #planCv { position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair; }
+  #planBar { position:absolute; left:50%; top:calc(env(safe-area-inset-top, 0px) + 10px); transform:translateX(-50%); width:min(600px, calc(100vw - 20px)); background:rgba(14,15,17,.92); border:1px solid var(--line);
+    border-radius:16px; padding:10px 12px; }
+  #planBar .row { margin:0; } #planBar .note { margin:8px 0; }
+  #planBar .btn, #planFoot .btn { min-height:36px; padding:7px 11px; font-size:13px; }
+  #planSize { flex:1; min-width:90px; accent-color:var(--accent); touch-action:pan-x; }
+  #planZoom { position:absolute; right:12px; top:50%; display:flex; flex-direction:column; gap:8px; transform:translateY(-50%); }
+  #planFoot { position:absolute; left:50%; bottom:calc(env(safe-area-inset-bottom, 0px) + 26px); transform:translateX(-50%); display:flex; gap:8px; flex-wrap:wrap; justify-content:center; width:max-content; max-width:calc(100vw - 20px); }
+  #planCredit { position:absolute; right:8px; bottom:calc(env(safe-area-inset-bottom, 0px) + 4px); font-size:10px; color:#fff; text-shadow:0 0 3px #000, 0 0 3px #000; pointer-events:none; }
+  .fp { display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:8px; }
+  .fld { display:flex; flex-direction:column; gap:3px; min-width:0; } .fld.wide { grid-column:1 / -1; }
+  .fld span { font-size:12px; color:var(--dim); }
+  .fld input, .fld textarea { width:100%; min-width:0; background:#000; border:1px solid var(--line); border-radius:10px; padding:9px 10px; font:inherit; font-size:16px; color:inherit; -webkit-user-select:text; user-select:text; touch-action:auto; color-scheme:dark; }
+  .fld textarea { resize:vertical; font-size:14px; line-height:1.4; }
+  .fpMore { border-top:1px solid var(--line); margin-top:14px; padding-top:12px; } .fpMore summary { cursor:pointer; font-weight:500; }
+  #planSaveLink { text-decoration:none; display:inline-flex; align-items:center; }
   /* waypoint editor */
   #editBar { pointer-events:auto; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:10px 12px; max-width:640px; width:100%; align-self:center;
     -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
@@ -384,9 +403,13 @@
   <div class="row"><button class="btn" id="monsterBtn">Monster mode off</button></div>
   <div class="note" id="monsterNote" hidden>A monster is loose near your drone. While flying, tap the right stick to fire. On a computer, click or press F.</div>
 
+  <h3>Airspace</h3>
+  <div class="note" id="airNote"></div>
+  <div class="row" style="margin-top:8px"><button class="btn" id="airKeyBtn">Add airspace key</button></div>
+
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.6 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.7 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -413,6 +436,11 @@
       <b>Follow a car</b>
       <span class="note">Draw a route for a car, then follow it automatically or fly it yourself.</span>
       <div class="row"><button class="btn" id="openCar">Set up a car</button></div>
+    </div>
+    <div class="card">
+      <b>Flight plan</b>
+      <span class="note">Mark the landing zone, flight boundary and lock-offs on a map, then export a Plan of Operations as a PDF.</span>
+      <div class="row"><button class="btn" id="openPlan">Make a flight plan</button></div>
     </div>
   </div>
   <h3>Current move</h3>
@@ -489,6 +517,52 @@
 
 <div id="pickBar" hidden><b>Tap your subject on the map</b><button class="btn" id="pickCancel">Cancel</button></div>
 
+<!-- Flight plan: map -->
+<div id="planEd" hidden>
+  <canvas id="planCv"></canvas>
+  <div id="planBar">
+    <div class="row">
+      <button class="btn" id="pm_lz">Landing zone</button>
+      <button class="btn" id="pm_ring">Boundary</button>
+      <button class="btn" id="pm_locks">Lock-offs</button>
+    </div>
+    <div class="note" id="planHint"></div>
+    <div class="row" id="pt_lz"></div>
+    <div class="row" id="pt_ring">
+      <button class="btn" id="planFitMove">Fit to my move</button>
+      <button class="btn" id="planSquare">Square</button>
+      <input id="planSize" type="range" min="30" max="500" step="10" value="120" aria-label="Square size, metres from the landing zone to each side"><b id="planSizeLbl">120 m</b>
+      <button class="btn" id="planDelCorner" disabled>Remove corner</button>
+    </div>
+    <div class="row" id="pt_locks">
+      <button class="btn" id="planLockRoads">Suggest at roads</button>
+      <button class="btn" id="planLockPaths">Roads and footpaths</button>
+      <button class="btn" id="planLockClear">Clear all</button>
+    </div>
+  </div>
+  <div id="planZoom"><button class="btn icon" id="planIn" aria-label="Zoom in">+</button><button class="btn icon" id="planOut" aria-label="Zoom out">−</button></div>
+  <div id="planFoot">
+    <button class="btn" id="planStyle">Street map</button>
+    <button class="btn" id="planCancel">Cancel</button>
+    <button class="btn go" id="planNext">Next: plan details</button>
+  </div>
+  <div id="planCredit"></div>
+</div>
+
+<!-- Flight plan: details -->
+<div id="planSheet" class="sheet" hidden>
+  <div class="sheetHead"><h2>Plan of Operations</h2><button class="btn" id="closePlan">Done</button></div>
+  <div class="card" id="whoRow" style="margin-bottom:10px"><b>Who is this plan for?</b><span class="note">This sets the pilot and company details printed on the plan.</span>
+    <div class="row"><button class="btn go" id="whoPat">I'm Patrick Weir</button><button class="btn" id="whoOther">Someone else</button></div></div>
+  <div class="fp" id="fpMain"></div>
+  <div class="note" id="planAirNote" style="margin-top:6px"></div>
+  <details class="fpMore"><summary>Standard wording</summary><div class="fp" id="fpWords"></div></details>
+  <details class="fpMore" id="fpYouBox"><summary>Pilot and company details</summary><div class="note" style="margin-top:8px"><span id="whoNow"></span> Printed on every plan and remembered on this device.</div><div class="fp" id="fpYou"></div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="whoSwitch">Change who this plan is for</button></div></details>
+  <div class="row" style="margin-top:14px"><button class="btn" id="planBack">Edit map</button><button class="btn go" id="planMake">Make PDF</button></div>
+  <div class="row" id="planOutRow" hidden><a class="btn go" id="planSaveLink" href="#" download>Save PDF</a><button class="btn" id="planShare" hidden>Share</button><span class="note" id="planOutName"></span></div>
+</div>
+
 <!-- Help -->
 <div id="helpSheet" class="sheet" hidden>
   <div class="sheetHead"><h2>Help</h2><button class="btn" id="closeHelp">Done</button></div>
@@ -536,7 +610,7 @@
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.6</div>
+  <div class="tap">TAP TO START · VERSION 3.7</div>
 </div>
 <div id="toast"></div>
 
@@ -1443,27 +1517,33 @@
   // Mouse look (PC): hold the right mouse button anywhere on the view; moving the mouse turns the drone and tilts the camera. Let go to stop.
   var mouseLook = (function () {
     var held = false, map = $("map"), YAW = 0.12, TILT = 0.10;      // degrees per pixel of mouse travel
+    var ua = navigator.userAgent || "", noLock = /safari/i.test(ua) && !/chrome|chromium|crios|fxios|edg|android/i.test(ua), lastX = 0, lastY = 0;
     function canLook() { return S.mode === "fly" && !isFpv(); }
     function release() {
-      held = false;
+      held = false; document.body.classList.remove("looking");
       if (document.pointerLockElement === scene.canvas && document.exitPointerLock) document.exitPointerLock();
     }
     window.addEventListener("contextmenu", function (e) { if (S.mode === "fly" || held) e.preventDefault(); });
     map.addEventListener("pointerdown", function (e) {
-      if (S.mode === "fly" && e.pointerType === "mouse" && e.button === 0) { if (!picking) monsterFire(); return; }
-      if (!canLook() || e.pointerType !== "mouse" || e.button !== 2) return;
-      held = true; e.preventDefault();
+      var look = e.button === 2 || (e.button === 0 && e.ctrlKey);
+      if (S.mode === "fly" && e.pointerType === "mouse" && !look) { if (e.button === 0 && !picking) monsterFire(); return; }
+      if (!canLook() || e.pointerType !== "mouse" || !look) return;
+      held = true; lastX = e.clientX; lastY = e.clientY; e.preventDefault();
+      if (noLock) { document.body.classList.add("looking"); return; }
       // hide and hold the pointer while the button is down so it can't run off the edge of the screen
       try { var r = scene.canvas.requestPointerLock && scene.canvas.requestPointerLock(); if (r && r.catch) r.catch(function () {}); } catch (x) {}
     });
-    function up(e) { if (e.button === 2 || e.buttons === 0) release(); }
+    function up(e) { if (held && (e.button === 2 || e.button === 0 || e.buttons === 0)) release(); }
+    document.addEventListener("pointerlockerror", function () { noLock = true; });          // a browser that refuses the lock still gets drag-look
     window.addEventListener("pointerup", up); document.addEventListener("mouseup", up);
-    document.addEventListener("pointerlockchange", function () { if (document.pointerLockElement !== scene.canvas) held = false; });
+    document.addEventListener("pointerlockchange", function () { if (!noLock && document.pointerLockElement !== scene.canvas) held = false; });
     document.addEventListener("mousemove", function (e) {
       if (!canLook() || !held) return;
-      var gs = $("gimbal");
-      S.heading = (S.heading + (e.movementX || 0) * YAW * D2R + TWO_PI) % TWO_PI;
-      S.gimbalT = S.gimbal = clamp(S.gimbalT - (e.movementY || 0) * TILT, +gs.min, +gs.max);   // mouse forward looks up
+      var gs = $("gimbal"), locked = document.pointerLockElement === scene.canvas, mx = locked ? (e.movementX || 0) : e.clientX - lastX, my = locked ? (e.movementY || 0) : e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      if (!locked && e.buttons === 0) { release(); return; }                                 // the button came up somewhere we didn't see
+      S.heading = (S.heading + mx * YAW * D2R + TWO_PI) % TWO_PI;
+      S.gimbalT = S.gimbal = clamp(S.gimbalT - my * TILT, +gs.min, +gs.max);   // mouse forward looks up
       gs.value = S.gimbalT; $("gimbalLbl").textContent = gimbalText(S.gimbalT);
     });
     return { release: release };
@@ -2360,6 +2440,557 @@
     tl.addEventListener("pointerup", up); tl.addEventListener("pointercancel", up);
   })();
 
+  var PLAN_LOGO = "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";
+  // ---------- airspace: looked up from openAIP (a free community database) when a key has been added in Settings ----------
+  var AIR_KEY = "a6be206d67ae3dccaa7767f206c2ea90";
+  var air = { key: store.get("aipKey") === "off" ? "" : (store.get("aipKey") || AIR_KEY), at: null, busy: false, res: null, err: "", last: 0 };
+  var AIR_CLASS = ["A", "B", "C", "D", "E", "F", "G"], AIR_SKIP = [10, 11, 12, 27, 33];      // skip whole-country regions that aren't an airspace class
+  function airLimit(l) {
+    if (!l) return "";
+    if (l.unit === 6) return "FL" + l.value;
+    if (!l.value && l.referenceDatum === 0) return "surface";
+    return l.value + (l.unit === 0 ? " m" : " ft") + (l.referenceDatum === 0 ? " above ground" : l.referenceDatum === 1 ? " above sea level" : "");
+  }
+  function airFeet(l) { return !l ? 0 : l.unit === 6 ? l.value * 100 : l.unit === 0 ? l.value * 3.281 : l.value; }
+  function inRing(ring, x, y) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var a = ring[i], b = ring[j];
+      if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+    }
+    return inside;
+  }
+  function inGeo(g, x, y) {
+    if (!g || !g.coordinates) return false;
+    var polys = g.type === "MultiPolygon" ? g.coordinates : g.type === "Polygon" ? [g.coordinates] : [];
+    return polys.some(function (p) { return p[0] && inRing(p[0], x, y) && !p.slice(1).some(function (hole) { return inRing(hole, x, y); }); });
+  }
+  // From the airspaces around a point, work out what applies at ground level there.
+  function airPick(items, lon, lat) {
+    var here = (items || []).filter(function (a) { return a && AIR_SKIP.indexOf(a.type) < 0 && inGeo(a.geometry, lon, lat); });
+    var ground = here.filter(function (a) { return a.lowerLimit && !a.lowerLimit.value && a.lowerLimit.unit !== 6; });
+    var ctl = ground.filter(function (a) { return a.icaoClass >= 0 && a.icaoClass <= 4; }).sort(function (a, b) { return a.icaoClass - b.icaoClass; })[0];
+    var spec = ground.filter(function (a) { return a.icaoClass === 5 || a.type === 1 || a.type === 2 || a.type === 3; })[0];
+    var kind = ["", "restricted", "danger", "prohibited"], res = { cls: "G", name: "", detail: "", canada: true };
+    if (here[0] && here[0].country) res.canada = here[0].country === "CA";
+    if (ctl) { res.cls = AIR_CLASS[ctl.icaoClass]; res.name = ctl.name || ""; res.detail = "surface to " + airLimit(ctl.upperLimit); }
+    else if (spec) { res.cls = "F"; res.name = spec.name || ""; res.detail = (kind[spec.type] || "special use") + ", surface to " + airLimit(spec.upperLimit); }
+    else {
+      var above = here.filter(function (a) { return a.icaoClass >= 0 && a.icaoClass <= 4 && a.lowerLimit; }).sort(function (a, b) { return airFeet(a.lowerLimit) - airFeet(b.lowerLimit); })[0];
+      res.detail = "uncontrolled at the surface" + (above ? "; Class " + AIR_CLASS[above.icaoClass] + " starts at " + airLimit(above.lowerLimit) : "");
+    }
+    if (ctl && spec) res.detail += "; also " + (kind[spec.type] || "Class F") + " area " + (spec.name || "");
+    res.hud = res.cls + (res.name ? " · " + res.name : "");
+    res.line = res.cls + " Class airspace" + (ctl ? (res.canada ? " – advance approval will be secured via NAV Drone" : " – authorisation will be secured before flight") : "");
+    return res;
+  }
+  function airNote() {
+    $("airKeyBtn").textContent = air.key ? "Change airspace key" : "Turn airspace on";
+    $("airNote").textContent = !air.key ? "Turned off on this device. Shot Scout can show the airspace class from openAIP, a free community database."
+      : air.err ? "Lookup failed: " + air.err
+      : air.res ? "Here: Class " + air.res.cls + (air.res.name ? " · " + air.res.name : "") + " · " + air.res.detail + ". From openAIP, a community database: always confirm on the official source before you fly."
+      : "Key saved. Checking the airspace where you're looking…";
+  }
+  function airLookup(pt) {
+    if (!air.key || air.busy) return;
+    air.busy = true; air.at = pt; air.last = Date.now();
+    var d = 0.02, url = "https://api.core.openaip.net/api/airspaces?bbox=" + [pt.lon - d, pt.lat - d, pt.lon + d, pt.lat + d].map(function (n) { return n.toFixed(4); }).join(",") + "&limit=200&apiKey=" + encodeURIComponent(air.key);
+    fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "openAIP didn't accept the key" : "openAIP answered with error " + r.status); return r.json(); })
+      .then(function (j) { air.res = airPick(j.items, pt.lon, pt.lat); air.err = ""; })
+      .catch(function (e) { air.res = null; air.err = (e && /key|error/.test(e.message)) ? e.message : "couldn't reach openAIP from this browser"; })
+      .then(function () { air.busy = false; airNote(); });
+  }
+  setInterval(function () {
+    if (!air.key || air.busy || !mapStarted || Date.now() - air.last < 8000) return;
+    var pt; try { pt = refPoint(); } catch (e) { return; }
+    if (!isFinite(pt.lat) || !isFinite(pt.lon)) return;
+    if (air.at && !air.err) { var dd = llDelta(air.at.lon, air.at.lat, pt.lon, pt.lat); if (Math.hypot(dd[0], dd[1]) < 400) return; }
+    if (air.err && Date.now() - air.last < 60000) return;
+    airLookup(pt);
+  }, 3000);
+  $("airKeyBtn").onclick = function () {
+    var k = window.prompt("openAIP API key. Leave it empty to turn the airspace readout off, or type: default", air.key || "default");
+    if (k === null) return;
+    k = k.trim(); air.key = k === "default" ? AIR_KEY : k; air.res = null; air.err = ""; air.at = null; air.last = 0;
+    if (!air.key) store.set("aipKey", "off"); else if (air.key === AIR_KEY) store.del("aipKey"); else store.set("aipKey", air.key);
+    airNote();
+  };
+  airNote();
+
+  // ---------- flight plan: landing zone, boundary and lock-offs on a 2D map, then a Plan of Operations PDF ----------
+  var M_LAT = 111320;
+  function offLL(p, e, n) { return [p[0] + e / (M_LAT * Math.cos(p[1] * D2R)), p[1] + n / M_LAT]; }
+  function toM(o, p) { return [(p[0] - o[0]) * M_LAT * Math.cos(o[1] * D2R), (p[1] - o[1]) * M_LAT]; }
+  function hull2(pts) {
+    pts = pts.slice().sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    function cr(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+    var lo = [], up = [], i;
+    for (i = 0; i < pts.length; i++) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], pts[i]) <= 0) lo.pop(); lo.push(pts[i]); }
+    for (i = pts.length - 1; i >= 0; i--) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], pts[i]) <= 0) up.pop(); up.push(pts[i]); }
+    lo.pop(); up.pop(); return lo.concat(up);
+  }
+  // An outline that keeps a margin (metres) around every point given, simple enough to adjust by hand.
+  function ringAround(pts, margin) {
+    var o = pts[0], m = [];
+    pts.forEach(function (p) { var q = toM(o, p); for (var k = 0; k < 12; k++) m.push([q[0] + margin * Math.cos(k * Math.PI / 6), q[1] + margin * Math.sin(k * Math.PI / 6)]); });
+    var hl = hull2(m);
+    while (hl.length > 4) {
+      var best = -1, bestA = Infinity, n = hl.length;
+      for (var i = 0; i < n; i++) { var a = hl[(i + n - 1) % n], b = hl[i], c = hl[(i + 1) % n], ar = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2; if (ar < bestA) { bestA = ar; best = i; } }
+      if (n <= 8 && bestA > 60) break;
+      hl.splice(best, 1);
+    }
+    return hl.map(function (q) { return offLL(o, q[0], q[1]); });
+  }
+  function squareRing(c, r) { return [offLL(c, -r, r), offLL(c, r, r), offLL(c, r, -r), offLL(c, -r, -r)]; }
+  function movePoints() {
+    var pts = [];
+    if (S.movePath) { for (var i = 0; i < S.movePath.length; i += 2) pts.push([S.movePath[i].lon / D2R, S.movePath[i].lat / D2R]); var e = S.movePath[S.movePath.length - 1]; pts.push([e.lon / D2R, e.lat / D2R]); }
+    else if (S.moveA && S.moveB) pts.push([S.moveA.lon / D2R, S.moveA.lat / D2R], [S.moveB.lon / D2R, S.moveB.lat / D2R]);
+    return pts;
+  }
+  var plan = { lz: null, ring: [], locks: [], auto: null, radius: 120 };
+  try { var savedPlan = JSON.parse(store.get("plan") || "null"); if (savedPlan && savedPlan.lz && savedPlan.ring) plan = savedPlan; } catch (e) {}
+  function planSave() { store.set("plan", JSON.stringify(plan)); }
+  var pv = { lon: 0, lat: 0, z: 17, mode: "lz", sel: -1, style: store.get("planStyle") === "osm" ? "osm" : "sat", cache: {}, ptrs: {}, drag: null, pinch: null, raf: 0 };
+  var TILES = {
+    osm: { max: 19, credit: "© OpenStreetMap contributors", layers: [function (z, x, y) { return "https://tile.openstreetmap.org/" + z + "/" + x + "/" + y + ".png"; }] },
+    sat: { max: 18, credit: "Imagery © Esri, Maxar, Earthstar Geographics", layers: [
+      function (z, x, y) { return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/" + z + "/" + y + "/" + x; },
+      function (z, x, y) { return "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/" + z + "/" + y + "/" + x; }] }
+  };
+  function mPerPx(v) { return 156543.034 * Math.cos(v.lat * D2R) / Math.pow(2, v.z); }
+  function pvProj(v, W, H) { var c = worldPx(v.lon, v.lat, v.z); return function (p) { var w = worldPx(p[0], p[1], v.z); return [W / 2 + w.x - c.x, H / 2 + w.y - c.y]; }; }
+  function pvUnproj(v, W, H, x, y) { var c = worldPx(v.lon, v.lat, v.z), ll = worldLL(c.x + x - W / 2, c.y + y - H / 2, v.z); return [ll.lon, ll.lat]; }
+  function tileImg(cache, url, onload) {
+    var e = cache[url];
+    if (!e) {
+      e = cache[url] = { img: document.createElement("img"), ok: false, bad: false };
+      e.img.crossOrigin = "anonymous";
+      e.img.onload = function () { e.ok = true; if (onload) onload(); }; e.img.onerror = function () { e.bad = true; if (onload) onload(); };
+      e.img.src = url;
+    }
+    return e;
+  }
+  // Paint the map tiles for a view; returns how many are still on their way.
+  function drawTiles(ctx, v, W, H, style, cache, onload) {
+    ctx.fillStyle = "#2a2d31"; ctx.fillRect(0, 0, W, H);
+    var t = TILES[style], zi = clamp(Math.round(v.z), 2, t.max), k = Math.pow(2, v.z - zi), c = worldPx(v.lon, v.lat, zi), n = Math.pow(2, zi), pending = 0;
+    var x0 = Math.floor((c.x - W / 2 / k) / 256), x1 = Math.floor((c.x + W / 2 / k) / 256), y0 = Math.floor((c.y - H / 2 / k) / 256), y1 = Math.floor((c.y + H / 2 / k) / 256);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 400) return 0;
+    t.layers.forEach(function (mk) {
+      for (var ty = y0; ty <= y1; ty++) for (var tx = x0; tx <= x1; tx++) {
+        if (ty < 0 || ty >= n) continue;
+        var e = tileImg(cache, mk(zi, ((tx % n) + n) % n, ty), onload);
+        if (e.ok) { try { ctx.drawImage(e.img, W / 2 + (tx * 256 - c.x) * k, H / 2 + (ty * 256 - c.y) * k, 256 * k + 0.6, 256 * k + 0.6); } catch (x) {} }
+        else if (!e.bad) pending++;
+      }
+    });
+    return pending;
+  }
+  function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  // Draw the plan itself: green boundary, yellow landing zone, red lock-offs. s scales line weights; ed adds the editing handles.
+  function drawPlan(ctx, P, mpp, s, ed) {
+    var r = plan.ring.map(P), i;
+    if (r.length > 1) {
+      ctx.beginPath(); r.forEach(function (q, j) { if (j) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); if (r.length > 2) ctx.closePath();
+      ctx.lineJoin = "round"; ctx.fillStyle = "rgba(140,230,70,.06)"; ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 5.5 * s; ctx.stroke(); ctx.strokeStyle = "#9cea4b"; ctx.lineWidth = 3 * s; ctx.stroke();
+    }
+    plan.locks.forEach(function (k) {
+      var c = P(k.p), half = Math.max(8 * s, k.len / 2 / mpp), dx = Math.sin(k.a) * half, dy = -Math.cos(k.a) * half;
+      ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(c[0] - dx, c[1] - dy); ctx.lineTo(c[0] + dx, c[1] + dy);
+      ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.lineWidth = 8 * s; ctx.stroke(); ctx.strokeStyle = "#e3261c"; ctx.lineWidth = 5.5 * s; ctx.stroke();
+    });
+    if (plan.lz) {
+      var z = P(plan.lz), h = Math.max(7 * s, 5 / mpp);
+      rrect(ctx, z[0] - h, z[1] - h, h * 2, h * 2, h * 0.3); ctx.fillStyle = "rgba(255,222,0,.8)"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.65)"; ctx.lineWidth = 1.5 * s; ctx.stroke();
+    }
+    if (ed && pv.mode === "ring") {
+      for (i = 0; i < r.length; i++) {
+        var a = r[i], b = r[(i + 1) % r.length];
+        ctx.beginPath(); ctx.arc((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, 5, 0, 7); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 1; ctx.stroke();
+      }
+      for (i = 0; i < r.length; i++) {
+        ctx.beginPath(); ctx.arc(r[i][0], r[i][1], i === pv.sel ? 10 : 8, 0, 7); ctx.fillStyle = i === pv.sel ? "#f4c20d" : "#fff"; ctx.fill(); ctx.strokeStyle = "#1c5a00"; ctx.lineWidth = 2.5; ctx.stroke();
+      }
+    }
+  }
+  function planBox() {
+    var pts = plan.ring.concat(plan.lz ? [plan.lz] : [], plan.locks.map(function (k) { return k.p; })), b = [Infinity, Infinity, -Infinity, -Infinity];
+    pts.forEach(function (p) { b[0] = Math.min(b[0], p[0]); b[1] = Math.min(b[1], p[1]); b[2] = Math.max(b[2], p[0]); b[3] = Math.max(b[3], p[1]); });
+    return b;
+  }
+  // A view that shows the whole plan with some breathing room.
+  function planFit(W, H, fill, zMax) {
+    var b = planBox(), a = worldPx(b[0], b[3], 0), c = worldPx(b[2], b[1], 0), dx = Math.max(1e-9, c.x - a.x), dy = Math.max(1e-9, c.y - a.y), mid = worldLL((a.x + c.x) / 2, (a.y + c.y) / 2, 0);
+    return { lon: mid.lon, lat: mid.lat, z: Math.min(zMax, Math.log(Math.min(W * fill / dx, H * fill / dy)) / Math.LN2) };
+  }
+  function pvSize() { var cv = $("planCv"); return [cv.clientWidth || window.innerWidth, cv.clientHeight || window.innerHeight]; }
+  function pvDraw() {
+    pv.raf = 0;
+    if ($("planEd").hidden) return;
+    var cv = $("planCv"), sz = pvSize(), W = sz[0], H = sz[1], dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    var ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawTiles(ctx, pv, W, H, pv.style, pv.cache, pvAsk);
+    drawPlan(ctx, pvProj(pv, W, H), mPerPx(pv), 1, true);
+  }
+  function pvAsk() { if (!pv.raf) pv.raf = requestAnimationFrame(pvDraw); }
+  function pvUI() {
+    ["lz", "ring", "locks"].forEach(function (m) { $("pm_" + m).classList.toggle("on", pv.mode === m); $("pt_" + m).hidden = pv.mode !== m; });
+    $("planHint").textContent = pv.mode === "lz" ? "Tap where you'll take off and land."
+      : pv.mode === "ring" ? "Drag a corner to move it. Drag a small dot to make a new corner."
+      : "Tap to add a lock-off. Tap one to remove it.";
+    $("planFitMove").disabled = !movePoints().length; $("planDelCorner").disabled = !(pv.sel >= 0 && plan.ring.length > 3);
+    $("planStyle").textContent = pv.style === "sat" ? "Street map" : "Satellite"; $("planCredit").textContent = TILES[pv.style].credit;
+    $("planSizeLbl").textContent = plan.radius + " m"; $("planSize").value = plan.radius;
+    pvAsk();
+  }
+  function planOpen() {
+    var here; try { here = refPoint(); } catch (e) { here = null; }
+    var mp = movePoints(), base = S.home ? [S.home.lon, S.home.lat] : mp.length ? mp[0] : here ? [here.lon, here.lat] : null;
+    if (!base) { toast("Find a location first"); return; }
+    var far = !plan.lz || (function () { var d = llDelta(plan.lz[0], plan.lz[1], base[0], base[1]); return Math.hypot(d[0], d[1]) > 3000; })();
+    if (far) {                                   // a new location: start a fresh plan from the move if there is one, or a simple square
+      plan = { lz: base, ring: [], locks: [], auto: null, radius: 120 };
+      if (mp.length) { plan.ring = ringAround(mp.concat([base]), 35); plan.auto = "move"; } else { plan.ring = squareRing(base, plan.radius); plan.auto = "square"; }
+      pv.mode = mp.length ? "ring" : "lz"; planSave();
+    }
+    if (edit.on) closeEditor();
+    openPanel(null); $("planEd").hidden = false; pv.sel = -1;
+    var sz = pvSize(), f = planFit(sz[0], sz[1], 0.44, 19.5); pv.lon = f.lon; pv.lat = f.lat; pv.z = f.z;
+    pvUI();
+    if (far) toast(mp.length ? "Boundary drawn around your move with a 35 m margin. Adjust anything, then tap Next." : "Tap where you'll take off and land. The green square is a starting boundary you can reshape.", 5200);
+  }
+  $("openPlan").onclick = planOpen;
+  $("pm_lz").onclick = function () { pv.mode = "lz"; pvUI(); };
+  $("pm_ring").onclick = function () { pv.mode = "ring"; pvUI(); };
+  $("pm_locks").onclick = function () { pv.mode = "locks"; pv.sel = -1; pvUI(); };
+  $("planIn").onclick = function () { pv.z = Math.min(20.5, pv.z + 0.5); pvAsk(); };
+  $("planOut").onclick = function () { pv.z = Math.max(4, pv.z - 0.5); pvAsk(); };
+  $("planStyle").onclick = function () { pv.style = pv.style === "sat" ? "osm" : "sat"; store.set("planStyle", pv.style); pvUI(); };
+  $("planCancel").onclick = function () { $("planEd").hidden = true; openPanel("moveSheet"); };
+  $("planSize").oninput = function () { plan.radius = +this.value; plan.ring = squareRing(plan.lz, plan.radius); plan.auto = "square"; pv.sel = -1; planSave(); pvUI(); };
+  $("planSquare").onclick = function () { plan.ring = squareRing(plan.lz, plan.radius); plan.auto = "square"; pv.sel = -1; planSave(); pvUI(); };
+  $("planFitMove").onclick = function () {
+    var mp = movePoints(); if (!mp.length) return;
+    plan.ring = ringAround(mp.concat([plan.lz]), 35); plan.auto = "move"; pv.sel = -1; planSave();
+    var sz = pvSize(), f = planFit(sz[0], sz[1], 0.44, 19.5); pv.lon = f.lon; pv.lat = f.lat; pv.z = f.z; pvUI();
+  };
+  $("planDelCorner").onclick = function () { if (pv.sel < 0 || plan.ring.length <= 3) return; plan.ring.splice(pv.sel, 1); pv.sel = -1; plan.auto = null; planSave(); pvUI(); };
+  $("planLockClear").onclick = function () { plan.locks = []; planSave(); pvAsk(); };
+  // Where roads (and optionally footpaths) cross the boundary: those are the places to station someone.
+  function locksFromWays(ways, withPaths) {
+    var o = plan.ring[0], R = plan.ring.map(function (p) { return toM(o, p); }), out = [], FOOT = ["footway", "path", "cycleway", "steps", "pedestrian", "track", "bridleway"], BIG = ["motorway", "trunk", "primary", "secondary"];
+    ways.forEach(function (w) {
+      var kind = w.tags && w.tags.highway, g = w.geometry; if (!kind || !g || kind === "proposed" || kind === "construction" || kind === "corridor") return;
+      var foot = FOOT.indexOf(kind) >= 0; if (foot && !withPaths) return;
+      for (var i = 0; i + 1 < g.length; i++) {
+        var a = toM(o, [g[i].lon, g[i].lat]), b = toM(o, [g[i + 1].lon, g[i + 1].lat]), rx = b[0] - a[0], ry = b[1] - a[1];
+        for (var j = 0; j < R.length; j++) {
+          var c = R[j], d = R[(j + 1) % R.length], sx = d[0] - c[0], sy = d[1] - c[1], den = rx * sy - ry * sx; if (Math.abs(den) < 1e-9) continue;
+          var t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / den, u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / den;
+          if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+          var pt = [a[0] + rx * t, a[1] + ry * t], len = foot ? 5 : BIG.indexOf(kind) >= 0 ? 20 : 13, near = null;
+          out.forEach(function (k) { if (Math.hypot(k.m[0] - pt[0], k.m[1] - pt[1]) < 9) near = k; });
+          if (near) { near.len = Math.max(near.len, len); continue; }
+          out.push({ m: pt, p: offLL(o, pt[0], pt[1]), a: Math.atan2(rx, ry) + Math.PI / 2, len: len, auto: true });
+        }
+      }
+    });
+    return out.slice(0, 40).map(function (k) { return { p: k.p, a: k.a, len: k.len, auto: true }; });
+  }
+  function suggestLocks(withPaths) {
+    if (plan.ring.length < 3) return;
+    var b = planBox(), pad = 0.0004, q = '[out:json][timeout:15];way["highway"](' + [b[1] - pad, b[0] - pad, b[3] + pad, b[2] + pad].map(function (n) { return n.toFixed(6); }).join(",") + ");out geom;";
+    toast("Reading the roads around the boundary…", 3000);
+    fetch("https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(q)).then(function (r) { if (!r.ok) throw new Error("status " + r.status); return r.json(); })
+      .then(function (d) {
+        var found = locksFromWays(d.elements || [], withPaths);
+        plan.locks = plan.locks.filter(function (k) { return !k.auto; }).concat(found); planSave(); pvAsk();
+        toast(found.length ? found.length + (found.length === 1 ? " place" : " places") + " where " + (withPaths ? "roads and paths cross" : "roads cross") + " the boundary. Tap any you don't need to remove it." : "No " + (withPaths ? "roads or paths" : "roads") + " cross the boundary.", 5200);
+      })
+      .catch(function () { toast("Couldn't read the roads just now. Tap the map to add lock-offs yourself.", 5200); });
+  }
+  $("planLockRoads").onclick = function () { suggestLocks(false); };
+  $("planLockPaths").onclick = function () { suggestLocks(true); };
+  function pvTap(x, y) {
+    var sz = pvSize(), W = sz[0], H = sz[1], P = pvProj(pv, W, H), ll = pvUnproj(pv, W, H, x, y);
+    if (pv.mode === "lz") {
+      plan.lz = ll; if (plan.auto === "square" || plan.ring.length < 3) { plan.ring = squareRing(ll, plan.radius); plan.auto = "square"; }
+      planSave(); pvAsk(); return;
+    }
+    if (pv.mode === "ring") { pv.sel = -1; pvUI(); return; }
+    for (var i = 0; i < plan.locks.length; i++) { var c = P(plan.locks[i].p); if (Math.hypot(c[0] - x, c[1] - y) < 20) { plan.locks.splice(i, 1); planSave(); pvAsk(); return; } }
+    var best = null, r = plan.ring.map(P);
+    for (var j = 0; j < r.length; j++) {
+      var a = r[j], b = r[(j + 1) % r.length], ex = b[0] - a[0], ey = b[1] - a[1], t = clamp(((x - a[0]) * ex + (y - a[1]) * ey) / Math.max(1e-6, ex * ex + ey * ey), 0, 1), px = a[0] + ex * t, py = a[1] + ey * t, dist = Math.hypot(px - x, py - y);
+      if (!best || dist < best.d) best = { d: dist, x: px, y: py, a: Math.atan2(ex, -ey) };
+    }
+    var at = best && best.d < 18 ? pvUnproj(pv, W, H, best.x, best.y) : ll;
+    plan.locks.push({ p: at, a: best ? best.a : Math.PI / 2, len: 13 }); planSave(); pvAsk();
+  }
+  (function () {
+    var cv = $("planCv");
+    function xy(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+    function count() { return Object.keys(pv.ptrs).length; }
+    function hit(x, y) {
+      var sz = pvSize(), r = plan.ring.map(pvProj(pv, sz[0], sz[1])), i, best = null;
+      for (i = 0; i < r.length; i++) { var d = Math.hypot(r[i][0] - x, r[i][1] - y); if (d < 24 && (!best || d < best.d)) best = { i: i, d: d }; }
+      if (best) return best;
+      for (i = 0; i < r.length; i++) { var b = r[(i + 1) % r.length], d2 = Math.hypot((r[i][0] + b[0]) / 2 - x, (r[i][1] + b[1]) / 2 - y); if (d2 < 20 && (!best || d2 < best.d)) best = { i: i, d: d2, mid: true }; }
+      return best;
+    }
+    cv.addEventListener("pointerdown", function (e) {
+      var p = xy(e); pv.ptrs[e.pointerId] = p; try { cv.setPointerCapture(e.pointerId); } catch (x) {}
+      if (count() === 2) { var k = Object.keys(pv.ptrs), a = pv.ptrs[k[0]], b = pv.ptrs[k[1]]; pv.pinch = { d: Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])), z: pv.z }; pv.drag = null; return; }
+      var h = pv.mode === "ring" ? hit(p[0], p[1]) : null;
+      if (h && h.mid) { var sz = pvSize(); plan.ring.splice(h.i + 1, 0, pvUnproj(pv, sz[0], sz[1], p[0], p[1])); h = { i: h.i + 1, made: true }; plan.auto = null; }
+      if (h) { pv.sel = h.i; pvUI(); }
+      pv.drag = { id: e.pointerId, x: p[0], y: p[1], moved: !!(h && h.made), h: h, lon: pv.lon, lat: pv.lat };
+      e.preventDefault();
+    });
+    cv.addEventListener("pointermove", function (e) {
+      if (!pv.ptrs[e.pointerId]) return;
+      var p = xy(e); pv.ptrs[e.pointerId] = p;
+      if (pv.pinch && count() >= 2) { var k = Object.keys(pv.ptrs), a = pv.ptrs[k[0]], b = pv.ptrs[k[1]]; pv.z = clamp(pv.pinch.z + Math.log(Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])) / pv.pinch.d) / Math.LN2, 4, 20.5); pvAsk(); return; }
+      var g = pv.drag; if (!g || g.id !== e.pointerId) return;
+      if (!g.moved && Math.hypot(p[0] - g.x, p[1] - g.y) < 7) return;
+      g.moved = true;
+      var sz = pvSize();
+      if (g.h) { plan.ring[g.h.i] = pvUnproj(pv, sz[0], sz[1], p[0], p[1]); plan.auto = null; }
+      else { var c = pvUnproj({ lon: g.lon, lat: g.lat, z: pv.z }, sz[0], sz[1], sz[0] / 2 - (p[0] - g.x), sz[1] / 2 - (p[1] - g.y)); pv.lon = c[0]; pv.lat = c[1]; }
+      pvAsk();
+    });
+    function up(e) {
+      var g = pv.drag, p = pv.ptrs[e.pointerId]; delete pv.ptrs[e.pointerId];
+      if (count() < 2) pv.pinch = null;
+      if (!g || g.id !== e.pointerId) return;
+      pv.drag = null;
+      if (g.h) { planSave(); pvUI(); }
+      else if (!g.moved && p && e.type === "pointerup") pvTap(p[0], p[1]);
+    }
+    cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+    cv.addEventListener("wheel", function (e) { pv.z = clamp(pv.z - e.deltaY * 0.0025, 4, 20.5); pvAsk(); e.preventDefault(); }, { passive: false });
+    window.addEventListener("resize", pvAsk);
+  })();
+
+  // ---- the plan's wording: asked for once, remembered on this device ----
+  var FP = [
+    ["name", "Operation name", "text", "", "op", "e.g. Icebreaker UBC"], ["num", "Plan number", "text", "", "op", "e.g. 2026-70"],
+    ["date1", "Date", "date", "", "op"], ["date2", "Last day, if more than one", "date", "", "op"],
+    ["t1", "From", "time", "08:00", "op"], ["t2", "Until", "time", "17:00", "op"], ["tz", "Time zone", "text", "PST", "op"],
+    ["purpose", "Project purpose", "text", "Aerial Cinematography for a Television series", "wide"],
+    ["loc", "Location", "text", "", "wide", "Street address or place name"], ["air", "Airspace", "text", "", "wide", "e.g. G Class airspace"],
+    ["craft", "Aircraft", "text", "", "op", "Make and model"], ["elev", "Max elevation", "text", "400 ft AGL", "op"], ["dist", "Max distance", "text", "400 ft", "op"], ["speed", "Max speed", "text", "3m sec", "op"],
+    ["flights", "Approximate number of flights", "text", "~8 flights at 6-7 mins per flight", "wide"],
+    ["pre", "Pre-Flight", "area", "As per Peacemaker’s SOP on file with Transport Canada, a safety meeting including all personnel associated with the drone cinematography section of the production will be held before flight.", "words"],
+    ["plan", "Flight Plan", "area", "UAV flight is intended to participate in principal photography of this production. The drone will take off from the yellow takeoff zone.", "words"],
+    ["pub", "General Public", "area", "The area will be closed to public during the operation / vicinity of the flight path (100+ Ft from UAV)", "words"],
+    ["sec", "Security Plan", "area", "Production Assistants will be stationed at all points of ingress to the flight area, with the purpose of intercepting non production-related people. We will also have a minimum of two production assistants who will be assisting the visual observer by ensuring that no members of the public enter the area within the flight boundary during operation. In the event of an unruly bystander, we will politely ask them to wait in a safe location while we ground the UAV to review their concerns.", "words"],
+    ["haz", "Hazard notes", "area", "In the event of manned aircraft in the vicinity, one of the spotter’s duties is to monitor the skies for any aircraft that may come into the productions airspace. The spotter has direct wireless communication with the pilot at all times. Upon detecting an approaching aircraft the pilot of the UAV will land the UAV immediately and remain grounded until the airspace has cleared.", "words"],
+    ["pic", "Pilot in command", "text", "", "you"], ["cert", "Pilot certificate number", "text", "", "you"], ["cell", "Cell", "text", "", "you"], ["email", "Email", "text", "", "you"],
+    ["web", "Website", "text", "", "you"], ["co", "Company", "text", "", "you"],
+    ["ad1", "Address line 1", "text", "", "you"], ["ad2", "Address line 2", "text", "", "you"], ["ad3", "Address line 3", "text", "", "you"]
+  ];
+  var fp = {}, fpAuto = { loc: "", air: "" }, fpSaved = {};
+  try { fpSaved = JSON.parse(store.get("planForm") || "{}") || {}; } catch (e) { fpSaved = {}; }
+  (function () {
+    var today = new Date(), iso = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
+    FP.forEach(function (f) {
+      var box = $(f[4] === "words" ? "fpWords" : f[4] === "you" ? "fpYou" : "fpMain"), wrap = document.createElement("label"), cap = document.createElement("span"), inp = document.createElement(f[2] === "area" ? "textarea" : "input");
+      wrap.className = "fld" + (f[4] === "op" ? "" : " wide"); cap.textContent = f[1]; if (f[2] !== "area") inp.type = f[2]; else inp.rows = 3;
+      if (f[5]) inp.placeholder = f[5];
+      inp.value = fpSaved[f[0]] !== undefined ? fpSaved[f[0]] : f[0] === "date1" ? iso : f[3];
+      inp.oninput = fpStore; inp.onchange = fpStore;
+      wrap.appendChild(cap); wrap.appendChild(inp); box.appendChild(wrap); fp[f[0]] = inp;
+    });
+    if (fpSaved._loc) fpAuto.loc = fpSaved._loc; if (fpSaved._air) fpAuto.air = fpSaved._air;
+  })();
+  var WHO_PAT = { pic: "Patrick Weir", cert: "PC1912814930", cell: "1.604.754.9869", email: "Pat@peacemakerfilmworks.com", web: "www.peacemakerfilmworks.com", co: "Peacemaker Filmworks Inc.",
+                  ad1: "108A - 3430 Brighton Avenue", ad2: "Burnaby, British Columbia", ad3: "Canada" };
+  var PRE_PAT = "As per Peacemaker’s SOP on file with Transport Canada,", PRE_ANY = "As per the operator’s SOP on file with Transport Canada,";
+  var who = store.get("planWho");
+  function whoUI() { $("whoRow").hidden = !!who; $("whoNow").textContent = who === "pat" ? "Using Patrick Weir's details and the Peacemaker logo." : who ? "Using your own details, with no logo." : ""; }
+  function setWho(w) {
+    var k;
+    if (w === "pat") { for (k in WHO_PAT) fp[k].value = WHO_PAT[k]; fp.pre.value = fp.pre.value.replace(PRE_ANY, PRE_PAT); }
+    else { for (k in WHO_PAT) if (fp[k].value === WHO_PAT[k]) fp[k].value = ""; fp.pre.value = fp.pre.value.replace(PRE_PAT, PRE_ANY); $("fpYouBox").open = true; }
+    who = w; store.set("planWho", w); fpStore(); whoUI();
+    toast(w === "pat" ? "Your pilot and company details are filled in." : "Fill in your pilot and company details below. They're saved on this device.", 4200);
+  }
+  $("whoPat").onclick = function () { setWho("pat"); }; $("whoOther").onclick = function () { setWho("other"); };
+  $("whoSwitch").onclick = function () { who = null; whoUI(); $("planSheet").scrollTop = 0; };
+  whoUI();
+  function fpStore() { var o = { _loc: fpAuto.loc, _air: fpAuto.air }; FP.forEach(function (f) { o[f[0]] = fp[f[0]].value; }); store.set("planForm", JSON.stringify(o)); $("planOutRow").hidden = true; }
+  function fpSuggest(k, text) { if (!text) return; if (!fp[k].value || fp[k].value === fpAuto[k]) fp[k].value = text; fpAuto[k] = text; fpStore(); }
+  function planDetails() {
+    if (!plan.lz || plan.ring.length < 3) { toast("Set a landing zone and a boundary first"); return; }
+    $("planEd").hidden = true; openPanel("planSheet"); $("planOutRow").hidden = true;
+    $("planAirNote").textContent = air.res ? "Airspace suggested from openAIP (" + air.res.detail + "). Confirm it on the official source before you send this."
+      : "Airspace couldn't be detected here" + (air.err ? " (" + air.err + ")" : "") + ". Check the official source and type it in.";
+    if (air.res) fpSuggest("air", air.res.line);
+    var here = plan.lz[1].toFixed(5) + ", " + plan.lz[0].toFixed(5);
+    if (!fp.loc.value || fp.loc.value === fpAuto.loc) {
+      fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&lat=" + plan.lz[1].toFixed(5) + "&lon=" + plan.lz[0].toFixed(5)).then(function (r) { return r.json(); })
+        .then(function (j) { var a = (j && j.address) || {}, street = [a.house_number, a.road].filter(Boolean).join(" "), town = a.city || a.town || a.village || a.municipality || a.county || "", txt = [street || a.amenity || a.building || "", town].filter(Boolean).join(", "); fpSuggest("loc", txt || here); })
+        .catch(function () { fpSuggest("loc", here); });
+    }
+  }
+  $("planNext").onclick = planDetails;
+  $("planBack").onclick = function () { openPanel(null); $("planEd").hidden = false; pvUI(); };
+  $("closePlan").onclick = function () { openPanel(null); };
+
+  // ---- the PDF, written directly (no outside library): two letter pages laid out like a Plan of Operations ----
+  var HV = "278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584".split(",").map(Number);
+  var HB = "278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584".split(",").map(Number);
+  var WIN = { 8211: 150, 8212: 151, 8216: 145, 8217: 146, 8220: 147, 8221: 148, 8226: 149, 8230: 133, 8364: 128, 8482: 153 };
+  function winCode(ch) { var c = ch.charCodeAt(0); return c < 127 ? Math.max(32, c) : WIN[c] || (c >= 160 && c < 256 ? c : 63); }
+  function pdfW(s, bold, size) {
+    var w = 0, T = bold ? HB : HV;
+    for (var i = 0; i < s.length; i++) { var c = winCode(s.charAt(i)); w += c < 127 ? T[c - 32] : c === 150 ? 556 : c === 151 ? 1000 : (c === 145 || c === 146) ? (bold ? 278 : 222) : c === 149 ? 350 : 556; }
+    return w * size / 1000;
+  }
+  function pdfStr(s) {
+    var o = "(";
+    for (var i = 0; i < s.length; i++) { var c = winCode(s.charAt(i)); o += c === 40 || c === 41 || c === 92 ? "\\" + String.fromCharCode(c) : c < 127 ? String.fromCharCode(c) : "\\" + c.toString(8); }
+    return o + ")";
+  }
+  function bytesOf(s) { var b = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 255; return b; }
+  // One page's drawing commands; y is measured down from the top of the page like the rest of the app.
+  function PdfPage() { this.ops = []; }
+  PdfPage.prototype.text = function (x, y, s, bold, size, blue) { this.ops.push("BT /F" + (bold ? 2 : 1) + " " + size + " Tf " + (blue ? "0.13 0.3 0.78" : "0 0 0") + " rg " + x.toFixed(2) + " " + (792 - y).toFixed(2) + " Td " + pdfStr(s) + " Tj ET"); };
+  PdfPage.prototype.right = function (x, y, s, bold, size) { this.text(x - pdfW(s, bold, size), y, s, bold, size); };
+  PdfPage.prototype.rule = function (x0, x1, y) { this.ops.push("0.35 w 0 0 0 RG " + x0 + " " + (792 - y) + " m " + x1 + " " + (792 - y) + " l S"); };
+  PdfPage.prototype.image = function (name, x, y, w, h) { this.ops.push("q " + w + " 0 0 " + h + " " + x + " " + (792 - y - h) + " cm /" + name + " Do Q"); };
+  // A bold label followed by ordinary text, wrapped to the width; returns the y of the next line.
+  PdfPage.prototype.para = function (x, y, label, body, size, maxW, lead) {
+    var words = [], self = this;
+    label.split(" ").filter(Boolean).forEach(function (w) { words.push([w, true]); });
+    String(body).split(/\s+/).filter(Boolean).forEach(function (w) { words.push([w, false]); });
+    var line = [], lw = 0;
+    function flush() {
+      var cx = x, run = "", rb = null;
+      line.forEach(function (w, i) { var piece = (i ? " " : "") + w[0]; if (rb === null) rb = w[1]; if (w[1] !== rb) { self.text(cx, y, run, rb, size); cx += pdfW(run, rb, size); run = ""; rb = w[1]; } run += piece; });
+      if (run) self.text(cx, y, run, rb, size);
+      y += lead; line = []; lw = 0;
+    }
+    words.forEach(function (w) { var ww = pdfW((line.length ? " " : "") + w[0], w[1], size); if (line.length && lw + ww > maxW) { flush(); ww = pdfW(w[0], w[1], size); } line.push(w); lw += ww; });
+    if (line.length) flush();
+    return y;
+  };
+  function pdfBuild(pages, images, title) {
+    var parts = [], off = 0, offs = [], n = 0;
+    function put(x) { var b = typeof x === "string" ? bytesOf(x) : x; parts.push(b); off += b.length; }
+    function obj(body, stream) { n++; offs[n] = off; put(n + " 0 obj\n" + body + "\n"); if (stream) { put("stream\n"); put(stream); put("\nendstream\n"); } put("endobj\n"); return n; }
+    var names = Object.keys(images), firstImg = 5, firstPage = firstImg + names.length, kids = pages.map(function (p, i) { return (firstPage + i * 2) + " 0 R"; });
+    put("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+    obj("<< /Type /Catalog /Pages 2 0 R >>");
+    obj("<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + pages.length + " >>");
+    obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+    obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+    var xo = names.map(function (k, i) {
+      var im = images[k]; obj("<< /Type /XObject /Subtype /Image /Width " + im.w + " /Height " + im.h + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + im.bytes.length + " >>", im.bytes);
+      return "/" + k + " " + (firstImg + i) + " 0 R";
+    }).join(" ");
+    pages.forEach(function (p) {
+      var body = bytesOf(p.ops.join("\n"));
+      obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << " + xo + " >> >> /Contents " + (n + 2) + " 0 R >>");
+      obj("<< /Length " + body.length + " >>", body);
+    });
+    var info = obj("<< /Title " + pdfStr(title) + " /Producer (Shot Scout) >>"), xref = off, out;
+    put("xref\n0 " + (n + 1) + "\n0000000000 65535 f \n");
+    for (var i = 1; i <= n; i++) put(("0000000000" + offs[i]).slice(-10) + " 00000 n \n");
+    put("trailer\n<< /Size " + (n + 1) + " /Root 1 0 R /Info " + info + " 0 R >>\nstartxref\n" + xref + "\n%%EOF\n");
+    out = new Uint8Array(off); var at = 0; parts.forEach(function (b) { out.set(b, at); at += b.length; });
+    return out;
+  }
+  function ordinal(d) { var s = ["th", "st", "nd", "rd"], v = d % 100; return d + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function planDates() {
+    var MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    function parts(v) { var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v || ""); return m ? { y: +m[1], m: +m[2] - 1, d: +m[3] } : null; }
+    var a = parts(fp.date1.value), b = parts(fp.date2.value), txt = "";
+    if (a && b && (b.y !== a.y || b.m !== a.m || b.d !== a.d)) txt = a.y !== b.y ? MON[a.m] + " " + ordinal(a.d) + ", " + a.y + " – " + MON[b.m] + " " + ordinal(b.d) + ", " + b.y
+      : a.m !== b.m ? MON[a.m] + " " + ordinal(a.d) + " – " + MON[b.m] + " " + ordinal(b.d) + ", " + a.y : MON[a.m] + " " + ordinal(a.d) + " – " + ordinal(b.d) + ", " + a.y;
+    else if (a) txt = MON[a.m] + " " + ordinal(a.d) + ", " + a.y;
+    var times = [fp.t1.value, fp.t2.value].filter(Boolean).join(" – ");
+    return [txt, [times, fp.tz.value].filter(Boolean).join(" ")].filter(Boolean).join("   ");
+  }
+  // The map picture for the PDF: the same drawing as the editor, at print size, with a scale bar, north arrow and the map credit.
+  function planMapImage(done) {
+    var W = 1872, H = 1356, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    var ctx = cv.getContext("2d"), v = planFit(W, H, 0.74, 21.5), cache = {}, finished = false, style = pv.style;
+    function finish(plain) {
+      if (finished && !plain) return; finished = true;
+      if (plain) { ctx.fillStyle = "#e9ebe6"; ctx.fillRect(0, 0, W, H); } else drawTiles(ctx, v, W, H, style, cache, null);
+      var mpp = mPerPx(v); drawPlan(ctx, pvProj(v, W, H), mpp, 4, false);
+      var nice = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000], len = nice[0]; nice.forEach(function (q) { if (q / mpp < W * 0.22) len = q; });
+      var bx = 44, by = H - 54, bw = len / mpp;
+      ctx.lineCap = "butt"; ctx.strokeStyle = "#000"; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(bx - 3, by); ctx.lineTo(bx + bw + 3, by); ctx.stroke(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
+      ctx.font = "600 34px Helvetica, Arial, sans-serif"; ctx.lineJoin = "round"; ctx.lineWidth = 7; ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.fillStyle = "#fff";
+      function label(t, x, y, align) { ctx.textAlign = align; ctx.strokeText(t, x, y); ctx.fillText(t, x, y); }
+      label(len >= 1000 ? len / 1000 + " km" : len + " m", bx, by - 20, "left");
+      ctx.beginPath(); ctx.moveTo(W - 70, 50); ctx.lineTo(W - 46, 112); ctx.lineTo(W - 70, 98); ctx.lineTo(W - 94, 112); ctx.closePath(); ctx.lineWidth = 6; ctx.stroke(); ctx.fill(); label("N", W - 70, 152, "center");
+      ctx.font = "500 26px Helvetica, Arial, sans-serif"; ctx.lineWidth = 6; if (!plain) label(TILES[style].credit, W - 24, H - 24, "right");
+      var url; try { url = cv.toDataURL("image/jpeg", 0.88); } catch (e) { if (!plain) { finish(true); return; } url = null; }
+      done(url, plain, W, H);
+    }
+    function attempt() { if (finished) return; if (!drawTiles(ctx, v, W, H, style, cache, attempt)) finish(false); }
+    setTimeout(function () { finish(false); }, 10000);
+    attempt();
+  }
+  function planPdf(mapUrl, W, H) {
+    var p1 = new PdfPage(), p2 = new PdfPage(), L = 72, R = 540, size = 9.5, lead = 13, v = {}; FP.forEach(function (f) { v[f[0]] = fp[f[0]].value.trim(); });
+    var images = {}; if (who === "pat") images.Lg = { w: 197, h: 62, bytes: bytesOf(atob(PLAN_LOGO)) };
+    if (mapUrl) images.Mp = { w: W, h: H, bytes: bytesOf(atob(mapUrl.split(",")[1])) };
+    function frame(pg) {
+      if (images.Lg) pg.image("Lg", L, 20, 121, 38); else if (v.co) pg.text(L, 52, v.co, true, 13); pg.right(R, 56, "Plan of Operations (POO)" + (v.num ? " " + v.num : ""), true, 7.5); pg.rule(L, R, 61);
+      pg.rule(L, R, 722);
+      [v.co, v.ad1, v.ad2, v.ad3].filter(Boolean).forEach(function (t, i) { pg.text(L, 733 + i * 10.5, t, false, 8); });
+      [v.email.toLowerCase(), v.web, v.cell].filter(Boolean).forEach(function (t, i) { pg.right(R, 733 + i * 10.5, t, false, 8); });
+    }
+    frame(p1); frame(p2);
+    var y = 84;
+    if (v.purpose) y = p1.para(L, y, "Project purpose –", v.purpose, size, R - L, lead);
+    var dates = planDates(); if (dates) y = p1.para(L, y, "Date Range –", dates, size, R - L, lead);
+    y += 8;
+    if (mapUrl) { p1.image("Mp", L, y, 468, 339); y += 339; }
+    y += 22;
+    if (v.loc) y = p1.para(L, y, "Location:", v.loc, size, R - L, lead) + 8;
+    if (v.air) y = p1.para(L, y, "Airspace:", v.air, size, R - L, lead) + 8;
+    y = p1.para(L, y, "Sites:", "Flight area boundary marked in green, yellow is takeoff/landing zone" + (plan.locks.length ? ", red is police/production lockoff" : "") + ".", size, R - L, lead);
+    y = Math.max(y + 26, 648);
+    y = p1.para(L, y, "Pilot in Command", "- " + [v.pic, v.cert].filter(Boolean).join("  "), size, R - L, lead);
+    [["Cell:", v.cell], ["Email:", v.email], ["Website:", v.web]].forEach(function (r) { if (!r[1]) return; p1.text(L, y, r[0], true, size); p1.text(L + pdfW(r[0] + " ", true, size), y, r[1], false, size, r[0] !== "Cell:"); y += lead; });
+    y = 100;
+    if (v.craft) y = p2.para(L, y, "Aircraft Description:", v.craft, size, R - L, lead) + 13;
+    [["Max elevation:", v.elev], ["Max Distance:", v.dist], ["Max Speed:", v.speed], ["Approximate number of flights executed:", v.flights]].forEach(function (r) { if (r[1]) y = p2.para(L, y, r[0], r[1], size, R - L, lead); });
+    y += 26;
+    [["Pre-Flight:", v.pre], ["Flight Plan:", v.plan], ["General Public:", v.pub], ["Security Plan:", v.sec], ["Hazard notes:", v.haz]].forEach(function (r) { if (r[1]) y = p2.para(L, y, r[0], r[1], size, R - L, lead) + 13; });
+    return pdfBuild([p1, p2], images, (v.name || "Flight plan") + (v.num ? " POO " + v.num : ""));
+  }
+  var planFile = null;
+  $("planMake").onclick = function () {
+    if (!who) { toast("First choose who this plan is for"); $("planSheet").scrollTop = 0; return; }
+    if (!fp.name.value.trim()) { toast("Give the operation a name first"); fp.name.focus(); return; }
+    if (!fp.date1.value) { toast("Choose the date first"); fp.date1.focus(); return; }
+    var btn = this; btn.disabled = true; btn.textContent = "Drawing the map…";
+    planMapImage(function (url, plain, W, H) {
+      btn.disabled = false; btn.textContent = "Make PDF";
+      var bytes; try { bytes = planPdf(url, W, H); } catch (e) { console.error(e); toast("The PDF couldn't be made: " + e.message, 7000); return; }
+      var name = (fp.name.value.trim() + (fp.num.value.trim() ? " POO " + fp.num.value.trim() : "")).replace(/[^A-Za-z0-9 _.-]+/g, "").replace(/\s+/g, "_") + ".pdf";
+      if (planFile) URL.revokeObjectURL(planFile.url);
+      var blob = new Blob([bytes], { type: "application/pdf" }), file = null;
+      try { file = new File([blob], name, { type: "application/pdf" }); } catch (e) {}
+      planFile = { url: URL.createObjectURL(blob), name: name };
+      $("planSaveLink").href = planFile.url; $("planSaveLink").download = name; $("planOutRow").hidden = false; $("planOutName").textContent = name + " · " + Math.max(1, Math.round(bytes.length / 1024)) + " KB";
+      $("planShare").hidden = !(file && navigator.canShare && navigator.canShare({ files: [file] }));
+      $("planShare").onclick = function () { navigator.share({ files: [file], title: name }).catch(function () {}); };
+      toast(plain ? "PDF ready, but the map picture couldn't be loaded, so the plan is drawn on a plain background. Try the other map style." : "PDF ready. Check the details, then save or share it.", plain ? 8000 : 4000);
+    });
+  };
+
   // ---------- help: a searchable set of answers ----------
   var HELP = [
     ["How do I find a location?", "Type a place name or paste coordinates (latitude, longitude) in the search box at the top and tap Go. The search box is only shown while scouting.", "search place address coordinates go find location"],
@@ -2387,6 +3018,11 @@
     ["How do target shots work?", "In Moves, tap Choose a target shot. Tap Pick a target, then tap your subject on the map. Set the subject size, then tap any shot to preview it. Try a variation changes direction, distance and height.", "target shots orbit dive presets subject pick variation"],
     ["How do I follow a car?", "In Moves, tap Set up a car, then Draw the route and tap along the road on the street map. Choose a follow shot, or tap Start the car and fly it yourself. Camera lock keeps the camera on the car while you fly.", "car follow route chase draw road camera lock vehicle"],
     ["How do I export a video?", "In Moves, tap Export video. The app plays the move and records what's inside the frame lines, then shows it with Save and Share buttons. A computer gives smoother results than a phone.", "export video save record mp4 webm download share"],
+    ["How do I make a flight plan?", "In Moves, tap Make a flight plan. On the map, set the landing zone, shape the green boundary and add red lock-offs, then tap Next. Fill in the operation name and date and tap Make PDF. If you have a move, the boundary is drawn around it for you.", "flight plan operations poo pdf export boundary landing zone lock off lockoff perimeter document"],
+    ["How do I change the flight plan boundary?", "On the flight plan map, tap Boundary. Drag a white corner to move it, or drag one of the small dots between corners to make a new corner. Select a corner and tap Remove corner to delete it. Square resets it to a square around the landing zone, sized with the slider.", "boundary perimeter corner square size green flight area reshape"],
+    ["How do lock-offs work?", "On the flight plan map, tap Lock-offs. Suggest at roads marks every place a road crosses the boundary in red. Tap the map to add one yourself, or tap one to remove it.", "lock off lockoff red barrier road closure police production assistant"],
+    ["How do I see the airspace class?", "Open Settings and look under Airspace. The readout at the top left shows the airspace class where you are, and Settings, Airspace has the detail. It comes from a community database, so always confirm it on the official source.", "airspace class controlled nav drone openaip g c d e f"],
+    ["The mouse doesn't work properly in Safari.", "In Safari, hold the right mouse button (or hold Control and click) and drag to look around. Chrome is the better choice on a computer: it also exports MP4 video and supports controllers.", "safari mouse flash flicker look mac browser chrome"],
     ["Why is my video a .webm file?", "Some browsers can't make MP4. Chrome, Edge and Safari export MP4. If yours saved WebM, try one of those.", "webm mp4 firefox format file type"],
     ["How do I stop a move that's playing?", "Tap Stop move at the top. Then choose Back to start, Stay here to take control where the drone is, or Keep playing.", "stop cancel move playing back to start stay"],
     ["Where are my saved moves?", "In Moves, under Saved moves. They're stored on this device and browser only, so they don't appear on your other devices.", "saved moves where lost device storage sync"],
@@ -2476,6 +3112,7 @@
     } else {
       html = "Scouting · " + lens + "<br>" + sun;
     }
+    if (air.key) html += "<br>Airspace <b>" + (air.res ? air.res.hud.replace(/[<>&]/g, "") : air.err ? "unavailable" : "checking") + "</b>";
     if (mon.on) html += "<br>Monster " + (mon.respawn > 0 ? "<b>down!</b>" : "<b>" + "\u25cf".repeat(Math.max(0, mon.hp)) + "\u25cb".repeat(Math.max(0, 5 - mon.hp)) + "</b>") + " · Score <b>" + mon.score + "</b>";
     $("hud").innerHTML = html;
   }, 200);
@@ -2635,7 +3272,7 @@
   $("vidClose").onclick = function () { $("vid").hidden = true; try { $("vidPlayer").pause(); } catch (e) {} };
 
   // Only one panel is open at a time.
-  var PANELS = ["sheet", "lightSheet", "moveSheet", "shotSheet", "carSheet", "helpSheet"];
+  var PANELS = ["sheet", "lightSheet", "moveSheet", "shotSheet", "carSheet", "helpSheet", "planSheet"];
   function openPanel(id) { PANELS.forEach(function (p) { $(p).hidden = p !== id; }); $("customRow").hidden = true; }
   $("menuBtn").onclick = function () { if (!$("sheet").hidden) { openPanel(null); return; } openPanel("sheet"); };
   $("lightBtn").onclick = function () { if (!$("lightSheet").hidden) { openPanel(null); return; } buildSunButtons(); openPanel("lightSheet"); };
