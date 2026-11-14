@@ -211,6 +211,11 @@
   #routeZoom { position:absolute; right:10px; bottom:calc(env(safe-area-inset-bottom, 0px) + 40px); display:flex; flex-direction:column; gap:6px; }
   #routeZoom .btn { font-size:20px; font-weight:700; background:rgba(14,15,17,.92); }
   #routeCredit { position:absolute; right:0; bottom:0; font-size:10px; color:#222; background:rgba(255,255,255,.8); padding:2px 6px; border-top-left-radius:6px; }
+  #padMon { display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:5px 10px; margin:6px 0 4px; font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; }
+  #padMon .ax { display:flex; align-items:center; gap:6px; }
+  #padMon .bar { flex:1; height:8px; border-radius:4px; background:rgba(255,255,255,.12); position:relative; overflow:hidden; }
+  #padMon .bar i { position:absolute; top:0; bottom:0; left:50%; width:0; background:var(--accent); }
+  #padMon .ax.used { color:var(--ink); }
   /* quick tour */
   #tut { position:fixed; inset:0; z-index:20; touch-action:none; }
   #tutRing { position:fixed; border:2px solid var(--accent); border-radius:14px; box-shadow:0 0 0 4000px rgba(0,0,0,.55), 0 0 22px rgba(244,194,13,.55); pointer-events:none; transition:left .25s, top .25s, width .25s, height .25s; }
@@ -330,6 +335,9 @@
   <div class="note" id="padStatus">No controller found. Plug one in, then move a stick or press a button on it.</div>
   <div class="row" style="margin-top:6px"><button class="btn" id="padSetup">Set up sticks</button><button class="btn" id="padTilt">Set up tilt wheel</button><button class="btn" id="padReset">Forget setup</button></div>
   <div class="note" id="padStep" hidden style="color:var(--accent);font-size:14px;margin-bottom:6px"></div>
+  <div class="row"><span class="note">Tilt wheel sets the</span><button class="btn" id="padTiltMode">tilt speed</button></div>
+  <div class="note">What the app is receiving from the controller right now. Move a control and watch which bar moves:</div>
+  <div id="padMon"></div>
 
   <h3>FPV drone</h3>
   <div class="row"><span class="note">Battery</span><button class="btn" id="pack4">4S</button><button class="btn" id="pack6">6S</button><button class="btn" id="pack12">12S</button></div>
@@ -345,7 +353,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.1 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.2 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -486,7 +494,7 @@
   <p class="by">Created by <b>Patrick Weir</b></p>
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
-  <div class="tap">TAP TO START · VERSION 3.1</div>
+  <div class="tap">TAP TO START · VERSION 3.2</div>
 </div>
 <div id="toast"></div>
 
@@ -1358,7 +1366,7 @@
       var down = false; try { down = Array.prototype.some.call(gp.buttons || [], function (b) { return b && b.pressed; }); } catch (e) {}
       if (down && !gpad.wasDown) monsterFire();
       gpad.wasDown = down;
-      return { lx: v(c.yaw), ly: v(c.thr), rx: v(c.rol), ry: v(c.pit), tilt: c.tilt ? v(c.tilt) : 0 };
+      return { lx: v(c.yaw), ly: v(c.thr), rx: v(c.rol), ry: v(c.pit), tilt: c.tilt ? v(c.tilt) : 0, hasTilt: !!c.tilt };
     }
     return null;
   }
@@ -1370,6 +1378,36 @@
     el.textContent = "Connected: " + gp.id.slice(0, 60) + (saved ? " \u00b7 using your stick setup" : ok ? " \u00b7 standard layout, ready to fly" : " \u00b7 tap Set up sticks to tell the app which stick is which");
   }
   setInterval(padStatus, 1000);
+  var ROLE_NAMES = { thr: "throttle", yaw: "yaw", pit: "pitch", rol: "roll", tilt: "tilt" };
+  function padMonitor() {
+    if ($("sheet").hidden) return;
+    var box = $("padMon"), gp = padList()[0];
+    if (!gp) { if (box.children.length) box.innerHTML = ""; return; }
+    var cfg = padConfig(gp) || {}, roles = {}, key;
+    for (key in ROLE_NAMES) if (cfg[key]) roles[cfg[key][0]] = ROLE_NAMES[key];
+    if (box.children.length !== gp.axes.length) {
+      box.innerHTML = "";
+      for (var i = 0; i < gp.axes.length; i++) {
+        var row = document.createElement("div"); row.className = "ax";
+        var lab = document.createElement("span"), bar = document.createElement("div"), fill = document.createElement("i");
+        bar.className = "bar"; bar.appendChild(fill); row.appendChild(lab); row.appendChild(bar); box.appendChild(row);
+      }
+    }
+    for (var a = 0; a < gp.axes.length; a++) {
+      var v = clamp(gp.axes[a] || 0, -1, 1), r = box.children[a], f = r.children[1].children[0];
+      r.children[0].textContent = (a + 1) + (roles[a] ? " " + roles[a] : "");
+      r.className = "ax" + (roles[a] ? " used" : "");
+      f.style.left = (v < 0 ? 50 + v * 50 : 50) + "%"; f.style.width = Math.abs(v) * 50 + "%";
+    }
+  }
+  setInterval(padMonitor, 100);
+  var tiltAngle = store.get("padTiltMode") === "angle";
+  function tiltModeLabel() { $("padTiltMode").textContent = tiltAngle ? "tilt angle" : "tilt speed"; $("padTiltMode").classList.toggle("on", tiltAngle); }
+  $("padTiltMode").onclick = function () {
+    tiltAngle = !tiltAngle; store.set("padTiltMode", tiltAngle ? "angle" : "speed"); tiltModeLabel(); gpad.lastTilt = null;
+    toast(tiltAngle ? "The wheel or slider position now sets the tilt angle directly." : "The wheel now sets how fast the camera tilts; centre it to hold.", 3600);
+  };
+  tiltModeLabel();
   window.addEventListener("gamepadconnected", function (e) {
     var ok = !!padConfig(e.gamepad);
     toast(ok ? "Controller connected and ready" : "Controller connected. Open Settings and tap Set up sticks.", 3600); padStatus();
@@ -1401,7 +1439,7 @@
         if (w.used[a]) continue;
         var d = gp.axes[a] - w.base[a]; if (Math.abs(d) > Math.abs(bestD)) { bestD = d; best = a; }
       }
-      if (best >= 0 && Math.abs(bestD) > 0.55) {
+      if (best >= 0 && Math.abs(bestD) > 0.4) {
         if (++w.hold >= 6) {                    // held for about a third of a second
           w.cfg[steps[w.step][0]] = [best, bestD > 0 ? 1 : -1]; w.used[best] = true; w.hold = 0; w.idle = 0;
           if (++w.step >= steps.length) {
@@ -1635,10 +1673,16 @@
     if (S.mode === "play") { stepPlay(dt); return; }
     if (S.mode !== "fly") return;
     IN = readPad() || input;
-    if (IN.tilt && Math.abs(IN.tilt) > 0.08) {      // controller wheel: the further it's turned, the faster the camera tilts
-      var gw = $("gimbal");
-      S.gimbalT = clamp(S.gimbalT + IN.tilt * 60 * dt, +gw.min, +gw.max);
-      gw.value = S.gimbalT; $("gimbalLbl").textContent = gimbalText(S.gimbalT);
+    if (IN.hasTilt) {
+      var gw = $("gimbal"), moved = false;
+      if (tiltAngle) {                              // the control's position is the tilt angle (best for sliders and knobs that stay put)
+        if (gpad.lastTilt === null || gpad.lastTilt === undefined || Math.abs(IN.tilt - gpad.lastTilt) > 0.004) {
+          gpad.lastTilt = IN.tilt; S.gimbalT = +gw.min + (IN.tilt + 1) / 2 * (+gw.max - +gw.min); moved = true;
+        }
+      } else if (Math.abs(IN.tilt) > 0.08) {        // the further it's turned, the faster the camera tilts (best for sprung wheels)
+        S.gimbalT = clamp(S.gimbalT + IN.tilt * 60 * dt, +gw.min, +gw.max); moved = true;
+      }
+      if (moved) { gw.value = S.gimbalT; $("gimbalLbl").textContent = gimbalText(S.gimbalT); }
     }
     if (isFpv()) { stepFpv(dt, now); return; }
     var sp = SPEEDS[S.speed], fpv = false;
