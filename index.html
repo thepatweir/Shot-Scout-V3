@@ -219,6 +219,10 @@
   #padMon .bar i { position:absolute; top:0; bottom:0; left:50%; width:0; background:var(--accent); }
   #padMon .ax.used { color:var(--ink); }
   #splash .upd { position:absolute; bottom:calc(env(safe-area-inset-bottom, 0px) + 64px); left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--dim); font-size:13px; }
+  /* storyboard */
+  #sbOut { position:fixed; inset:0; z-index:9; background:rgba(6,7,8,.95); overflow-y:auto; touch-action:pan-y; padding:calc(env(safe-area-inset-top, 0px) + 14px) 14px calc(env(safe-area-inset-bottom, 0px) + 20px); }
+  #sbOut .inner { max-width:1100px; margin:0 auto; } #sbOut .sheetHead { margin-bottom:12px; }
+  #sbImg { width:100%; border-radius:8px; background:#fff; display:block; -webkit-user-select:auto; user-select:auto; -webkit-touch-callout:default; }
   /* flight plan */
   body.looking, body.looking * { cursor:none !important; }
   #planEd { position:fixed; inset:0; z-index:12; background:#1b1d20; touch-action:none; overflow:hidden; }
@@ -409,7 +413,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.8 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.9 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -451,6 +455,7 @@
     <button class="btn go" id="playBtn" disabled>Play</button>
     <button class="btn" id="editMove" disabled>Edit waypoints</button>
     <button class="btn" id="recBtn" disabled>Export video</button>
+    <button class="btn" id="sbBtn" disabled>Export storyboard</button>
     <button class="btn" id="saveMove" disabled>Save move</button>
   </div>
   <h3>Saved moves</h3>
@@ -570,6 +575,19 @@
   <div id="helpList"></div>
 </div>
 
+<div id="sbOut" hidden>
+  <div class="inner">
+    <div class="sheetHead"><h2>Your storyboard</h2><button class="btn" id="sbClose">Done</button></div>
+    <img id="sbImg" alt="Storyboard of the move: start, middle and end frames with arrows for the camera motion">
+    <div class="note" id="sbInfo" style="margin:10px 0"></div>
+    <div class="row">
+      <button class="btn go" id="sbCopy">Copy image</button>
+      <a class="btn" id="sbSave" href="#" download>Save image</a>
+      <button class="btn" id="sbShare" hidden>Share</button>
+    </div>
+  </div>
+</div>
+
 <div id="vid" hidden>
   <div class="inner">
     <div class="sheetHead"><h2>Your video</h2><button class="btn" id="vidClose">Done</button></div>
@@ -610,7 +628,7 @@
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.8</div>
+  <div class="tap">TAP TO START · VERSION 3.9</div>
 </div>
 <div id="toast"></div>
 
@@ -1693,7 +1711,7 @@
   function updateMoveInfo() {
     $("durLbl").textContent = S.playDur + " s";
     $("setA").classList.toggle("on", !!S.moveA); $("setB").classList.toggle("on", !!S.moveB);
-    $("playBtn").disabled = !(S.moveA && S.moveB); $("saveMove").disabled = !(S.moveA && S.moveB); $("recBtn").disabled = !(S.moveA && S.moveB);
+    $("playBtn").disabled = !(S.moveA && S.moveB); $("saveMove").disabled = !(S.moveA && S.moveB); $("recBtn").disabled = !(S.moveA && S.moveB); $("sbBtn").disabled = !(S.moveA && S.moveB);
     $("editMove").disabled = !(S.moveA && S.moveB);
     drawPathLine();
     if (S.moveA && S.moveB) {
@@ -1882,7 +1900,7 @@
   scene.preUpdate.addEventListener(function () {
     var now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     monsterStep(dt, now); carStep(dt);
-    if (S.mode === "play") { stepPlay(dt); return; }
+    if (S.mode === "play") { if (sb) sbStep(dt); else stepPlay(dt); return; }
     if (S.mode !== "fly") return;
     IN = readPad() || input;
     if (IN.hasTilt) {
@@ -3063,6 +3081,130 @@
     });
   };
 
+  // ---------- storyboard: three frames of the move (start, middle, end) in one picture, with arrows for the camera's motion ----------
+  var sb = null, sbFile = null;
+  function sbState() { return { lon: S.lon, lat: S.lat, h: S.h, heading: S.heading, gimbal: S.gimbal, focal: S.focal }; }
+  // What the camera does between two moments, seen from the camera at the first one.
+  function sbMotion(a, b) {
+    var d = llDelta(a.lon / D2R, a.lat / D2R, b.lon / D2R, b.lat / D2R), up = b.h - a.h, fwd = d[0] * Math.sin(a.heading) + d[1] * Math.cos(a.heading), right = d[0] * Math.cos(a.heading) - d[1] * Math.sin(a.heading);
+    var yaw = (((b.heading - a.heading) / D2R + 540) % 360) - 180, tilt = b.gimbal - a.gimbal, zoom = b.focal / a.focal, dist = Math.hypot(fwd, right, up), need = Math.max(0.5, dist * 0.3), m = { words: [] };
+    if (Math.abs(right) > need && Math.abs(yaw) > 3 && (right > 0) !== (yaw > 0)) { m.orbit = right > 0 ? 1 : -1; m.words.push("Orbit " + (right > 0 ? "right" : "left")); }
+    else {
+      if (Math.abs(right) > need) { m.track = right > 0 ? 1 : -1; m.words.push("Track " + (right > 0 ? "right" : "left")); }
+      if (Math.abs(yaw) > 2) { m.pan = yaw > 0 ? 1 : -1; m.words.push("Pan " + (yaw > 0 ? "right" : "left")); }
+    }
+    if (Math.abs(fwd) > need) { m.push = fwd > 0 ? 1 : -1; m.words.push(fwd > 0 ? "Push in" : "Pull out"); }
+    if (Math.abs(up) > need) { m.rise = up > 0 ? 1 : -1; m.words.push(up > 0 ? "Rise" : "Descend"); }
+    if (Math.abs(tilt) > 1.5) { m.tilt = tilt > 0 ? 1 : -1; m.words.push("Tilt " + (tilt > 0 ? "up" : "down")); }
+    if (zoom > 1.02 || zoom < 0.98) { m.zoom = zoom > 1 ? 1 : -1; m.words.push("Zoom " + (zoom > 1 ? "in" : "out")); }
+    if (!m.words.length) m.words.push("Hold");
+    return m;
+  }
+  // A bold white arrow with a dark edge along a line or curve of points.
+  function sbArrow(g, pts, w) {
+    var n = pts.length, a = pts[n - 2], b = pts[n - 1], ang = Math.atan2(b[1] - a[1], b[0] - a[0]), head = w * 2.6;
+    var tip = b, base = [b[0] - Math.cos(ang) * head, b[1] - Math.sin(ang) * head];
+    function shaft(width, colour) {
+      g.strokeStyle = colour; g.lineWidth = width; g.lineCap = "round"; g.lineJoin = "round"; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+      for (var i = 1; i < n - 1; i++) g.lineTo(pts[i][0], pts[i][1]); g.lineTo(base[0], base[1]); g.stroke();
+    }
+    function headShape(grow, colour) {
+      var hw = head * 0.62 + grow, back = [base[0] - Math.cos(ang) * grow, base[1] - Math.sin(ang) * grow], fr = [tip[0] + Math.cos(ang) * grow * 1.6, tip[1] + Math.sin(ang) * grow * 1.6];
+      g.fillStyle = colour; g.beginPath(); g.moveTo(fr[0], fr[1]); g.lineTo(back[0] + Math.sin(ang) * hw, back[1] - Math.cos(ang) * hw); g.lineTo(back[0] - Math.sin(ang) * hw, back[1] + Math.cos(ang) * hw); g.closePath(); g.fill();
+    }
+    shaft(w + 8, "#111"); headShape(4, "#111"); shaft(w, "#fff"); headShape(0, "#fff");
+  }
+  function sbCurve(x0, y0, x1, y1, bulgeX, bulgeY) { var out = []; for (var i = 0; i <= 14; i++) { var t = i / 14, k = 4 * t * (1 - t); out.push([x0 + (x1 - x0) * t + bulgeX * k, y0 + (y1 - y0) * t + bulgeY * k]); } return out; }
+  function sbTag(g, text, x, y, align) {
+    g.font = "700 " + 26 + "px Helvetica, Arial, sans-serif"; g.textAlign = align || "center"; g.textBaseline = "middle"; g.lineJoin = "round"; g.lineWidth = 7; g.strokeStyle = "#111"; g.fillStyle = "#fff";
+    g.strokeText(text, x, y); g.fillText(text, x, y);
+  }
+  function sbArrows(g, m, x, y, W, H) {
+    var w = 15, s;
+    if (m.track) { s = m.track; sbArrow(g, [[x + W * (0.5 - 0.2 * s), y + H * 0.9], [x + W * (0.5 + 0.2 * s), y + H * 0.9]], w); sbTag(g, "TRACK", x + W * (0.5 - 0.27 * s), y + H * 0.9, s > 0 ? "right" : "left"); }
+    if (m.orbit) { s = m.orbit; sbArrow(g, sbCurve(x + W * (0.5 - 0.24 * s), y + H * 0.84, x + W * (0.5 + 0.24 * s), y + H * 0.84, 0, H * 0.09), w); sbTag(g, "ORBIT", x + W * 0.5, y + H * 0.84); }
+    if (m.pan) { s = m.pan; sbArrow(g, sbCurve(x + W * (0.5 - 0.2 * s), y + H * 0.15, x + W * (0.5 + 0.2 * s), y + H * 0.15, 0, -H * 0.07), w); sbTag(g, "PAN", x + W * 0.5, y + H * 0.17); }
+    if (m.push) { s = m.push; var top = y + H * 0.56, bot = y + H * 0.78, cx = x + W * 0.5;
+      if (s > 0) { sbArrow(g, [[cx - W * 0.09, bot], [cx - W * 0.03, top]], w * 0.8); sbArrow(g, [[cx + W * 0.09, bot], [cx + W * 0.03, top]], w * 0.8); }
+      else { sbArrow(g, [[cx - W * 0.03, top], [cx - W * 0.09, bot]], w * 0.8); sbArrow(g, [[cx + W * 0.03, top], [cx + W * 0.09, bot]], w * 0.8); }
+      sbTag(g, s > 0 ? "PUSH IN" : "PULL OUT", cx, y + H * 0.67); }
+    if (m.rise) { s = m.rise; sbArrow(g, [[x + W * 0.09, y + H * (0.5 + 0.17 * s)], [x + W * 0.09, y + H * (0.5 - 0.17 * s)]], w); sbTag(g, s > 0 ? "RISE" : "DESCEND", x + W * 0.125, y + H * 0.5, "left"); }
+    if (m.tilt) { s = m.tilt; sbArrow(g, sbCurve(x + W * 0.9, y + H * (0.5 + 0.16 * s), x + W * 0.9, y + H * (0.5 - 0.16 * s), W * 0.035, 0), w); sbTag(g, "TILT", x + W * 0.885, y + H * 0.5, "right"); }
+    if (m.zoom) { s = m.zoom; [[0.2, 0.25], [0.8, 0.25], [0.2, 0.75], [0.8, 0.75]].forEach(function (c) { var ox = x + W * c[0], oy = y + H * c[1], ix = x + W * (c[0] + (0.5 - c[0]) * 0.3), iy = y + H * (c[1] + (0.5 - c[1]) * 0.3); sbArrow(g, s > 0 ? [[ox, oy], [ix, iy]] : [[ix, iy], [ox, oy]], w * 0.7); }); sbTag(g, s > 0 ? "ZOOM IN" : "ZOOM OUT", x + W * 0.5, y + H * 0.28); }
+  }
+  function sbStart() {
+    if (!(S.moveA && S.moveB) || sb) return;
+    if (cap) { clearInterval(cap.timer); cap = null; $("pathStop").hidden = true; }
+    if (edit.on) closeEditor();
+    if (!S.home) setHome(S.moveA.lon / D2R, S.moveA.lat / D2R, S.moveA.h - 30);
+    // the motion at each frame is read from a short stretch of the move around it, so curved moves such as orbits read correctly
+    var states = [0, 0.12, 0.44, 0.56, 0.88, 1, 0.5].map(function (f) { poseAt(f); return sbState(); });
+    var f = frameRect, PW = 900, PH = Math.round(PW * f.h / f.w);
+    sb = { i: 0, t: 0, grab: false, states: states, shots: [], PW: PW, PH: PH, name: S.genName || (S.movePath ? "Your flight" : "Point to point") };
+    S.wantRec = false; S.playT = 0; S.preT = -1; S.returnTo = null;
+    openPanel(null); setMode("play"); setClean(true); setHelpers(false); $("playBar").hidden = true;
+    sb.off = scene.postRender.addEventListener(function () {
+      if (!sb || !sb.grab) return;
+      var c = scene.canvas, r = frameRect, k = c.width / c.clientWidth, cv = document.createElement("canvas"); cv.width = sb.PW; cv.height = sb.PH;
+      var g = cv.getContext("2d"), wm = +$("warm").style.opacity, dk = +$("dark").style.opacity;
+      try { g.drawImage(c, r.x * k, r.y * k, r.w * k, r.h * k, 0, 0, sb.PW, sb.PH); } catch (e) {}
+      g.globalCompositeOperation = "multiply";
+      if (wm > 0) { g.globalAlpha = wm; g.fillStyle = "#ff9a3c"; g.fillRect(0, 0, sb.PW, sb.PH); }
+      if (dk > 0) { g.globalAlpha = dk; g.fillStyle = "#070b22"; g.fillRect(0, 0, sb.PW, sb.PH); }
+      sb.shots.push(cv); sb.grab = false; sb.i++; sb.t = 0;
+      if (sb.i >= 3) setTimeout(sbFinish, 0);
+    });
+    toast("Capturing the start, middle and end of the move…", 3500);
+  }
+  // Called every frame while the storyboard is being captured: hold each pose until the map is sharp there, then take the picture.
+  function sbStep(dt) {
+    if (sb.i >= 3 || sb.grab) return;
+    poseAt([0, 0.5, 1][sb.i]); sb.t += dt;
+    if ((sb.t > 0.9 && (!tileset || tileset.tilesLoaded)) || sb.t > 6) sb.grab = true;
+  }
+  function sbFinish() {
+    var b = sb; if (!b) return; sb = null;
+    try { if (b.off) b.off(); } catch (e) {}
+    poseAt(0); S.playT = 0; exitPlay();
+    var PW = b.PW, PH = b.PH, gap = 44, top = 118, capH = 150, W = PW * 3 + gap * 4, H = top + PH + capH + 56, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    var g = cv.getContext("2d"), T = S.movePath ? S.movePath[S.movePath.length - 1].t : S.playDur, dur = S.playDur, st = b.states, pairs = [[0, 1], [2, 3], [4, 5]], at = [0, 6, 5], names = ["START", "MIDDLE", "END"];
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#111"; g.textBaseline = "alphabetic"; g.textAlign = "left"; g.font = "700 46px Helvetica, Arial, sans-serif"; g.fillText(b.name, gap, 74);
+    g.font = "400 30px Helvetica, Arial, sans-serif"; g.textAlign = "right"; g.fillStyle = "#444"; g.fillText(dur + " second move · storyboard", W - gap, 74);
+    for (var i = 0; i < 3; i++) {
+      var x = gap + i * (PW + gap), s0 = st[at[i]], m = sbMotion(st[pairs[i][0]], st[pairs[i][1]]);
+      if (b.shots[i]) g.drawImage(b.shots[i], x, top);
+      g.save(); g.beginPath(); g.rect(x, top, PW, PH); g.clip(); sbArrows(g, m, x, top, PW, PH); g.restore();
+      g.strokeStyle = "#111"; g.lineWidth = 4; g.strokeRect(x, top, PW, PH);
+      g.textAlign = "left"; g.textBaseline = "alphabetic"; g.fillStyle = "#111"; g.font = "700 34px Helvetica, Arial, sans-serif";
+      g.fillText((i + 1) + "  " + names[i] + " · " + (dur * i / 2).toFixed(dur * i / 2 % 1 ? 1 : 0) + " s", x, top + PH + 48);
+      g.font = "400 30px Helvetica, Arial, sans-serif"; g.fillText((i === 2 ? "Ends: " : "") + m.words.join(" · "), x, top + PH + 90);
+      g.fillStyle = "#555"; g.font = "400 26px Helvetica, Arial, sans-serif";
+      g.fillText(Math.round(s0.focal) + "mm · " + Math.abs(Math.round(s0.h - S.home.h)) + (s0.h < S.home.h - 0.5 ? " m below takeoff" : " m above takeoff") + " · facing " + compass(s0.heading / D2R) + " · tilt " + Math.round(s0.gimbal) + "°", x, top + PH + 128);
+    }
+    g.fillStyle = "#777"; g.font = "400 22px Helvetica, Arial, sans-serif"; g.textAlign = "right"; g.fillText("Map data © Google · Shot Scout preview", W - gap, H - 20);
+    var name = b.name.replace(/[^A-Za-z0-9 _-]+/g, "").trim().replace(/\s+/g, "_") + "_storyboard.png";
+    function show(blob) {
+      if (!blob) { toast("The storyboard couldn't be made on this browser."); return; }
+      if (sbFile) URL.revokeObjectURL(sbFile.url);
+      var file = null; try { file = new File([blob], name, { type: "image/png" }); } catch (e) {}
+      sbFile = { url: URL.createObjectURL(blob), blob: blob, name: name };
+      $("sbImg").src = sbFile.url; $("sbSave").href = sbFile.url; $("sbSave").download = name; $("sbInfo").textContent = name + " · " + (blob.size / 1048576).toFixed(1) + " MB";
+      $("sbCopy").hidden = !(navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem !== "undefined");
+      $("sbShare").hidden = !(file && navigator.canShare && navigator.canShare({ files: [file] }));
+      $("sbShare").onclick = function () { navigator.share({ files: [file], title: name }).catch(function () {}); };
+      $("sbOut").hidden = false;
+    }
+    try { cv.toBlob(show, "image/png"); } catch (e) { show(null); }
+  }
+  $("sbBtn").onclick = sbStart;
+  $("sbClose").onclick = function () { $("sbOut").hidden = true; openPanel("moveSheet"); };
+  $("sbCopy").onclick = function () {
+    if (!sbFile) return;
+    navigator.clipboard.write([new ClipboardItem({ "image/png": sbFile.blob })]).then(function () { toast("Storyboard copied. Paste it anywhere."); })
+      .catch(function () { toast("Couldn't copy from here. Press and hold (or right-click) the picture and choose Copy.", 5000); });
+  };
+
   // ---------- help: a searchable set of answers ----------
   var HELP = [
     ["How do I find a location?", "Type a place name or paste coordinates (latitude, longitude) in the search box at the top and tap Go. The search box is only shown while scouting.", "search place address coordinates go find location"],
@@ -3095,6 +3237,7 @@
     ["How do lock-offs work?", "On the flight plan map, tap Lock-offs. Suggest at roads marks every place a road crosses the boundary in red. Tap the map to add one yourself, or tap one to remove it.", "lock off lockoff red barrier road closure police production assistant"],
     ["How do I see the airspace class?", "Open Settings and look under Airspace. The readout at the top left shows the airspace class where you are, and Settings, Airspace has the detail. It comes from a community database, so always confirm it on the official source.", "airspace class controlled nav drone openaip g c d e f"],
     ["The mouse doesn't work properly in Safari.", "In Safari, hold the right mouse button (or hold Control and click) and drag to look around. Chrome is the better choice on a computer: it also exports MP4 video and supports controllers.", "safari mouse flash flicker look mac browser chrome"],
+    ["How do I export a storyboard?", "In Moves, tap Export storyboard. The app captures the start, middle and end of the current move and puts them in one picture, with arrows and labels for what the camera does. Tap Copy image to paste it into an email or document, or Save image.", "storyboard story board frames image picture arrows copy png export panels"],
     ["Why is my video a .webm file?", "Some browsers can't make MP4. Chrome, Edge and Safari export MP4. If yours saved WebM, try one of those.", "webm mp4 firefox format file type"],
     ["How do I stop a move that's playing?", "Tap Stop move at the top. Then choose Back to start, Stay here to take control where the drone is, or Keep playing.", "stop cancel move playing back to start stay"],
     ["Where are my saved moves?", "In Moves, under Saved moves. They're stored on this device and browser only, so they don't appear on your other devices.", "saved moves where lost device storage sync"],
