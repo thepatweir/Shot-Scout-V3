@@ -419,7 +419,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.15 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.16 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -642,7 +642,7 @@
     <li><b>Export</b><span>Preview video, a three-frame storyboard, or a flight plan PDF with airspace.</span></li>
   </ul>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.15</div>
+  <div class="tap">TAP TO START · VERSION 3.16</div>
 </div>
 <div id="toast"></div>
 
@@ -2001,7 +2001,7 @@
   // ---------- monster mode (an Extras toy): a cartoon monster stomps around; shoot it while flying ----------
   var mon = { on: false, ent: null, c: null, x: 0, y: 0, dir: 0, turn: 0, hp: 5, score: 0, ground: null, frames: null, frame: 0, frameT: 0, sampleT: 0, flash: 0, respawn: 0, shots: [], fx: [], kind: "monster", art: {} };
   var CREATURE = { monster: { name: "Monster", speed: 7, size: 64, n: 2, ft: 0.32, reach: 260, body: 30, hit: 36 },
-                   yeti:    { name: "Yeti",    speed: 17, size: 88, n: 4, ft: 0.1,  reach: 340, body: 42, hit: 46 } };
+                   yeti:    { name: "Yeti",    speed: 17, size: 88, n: 4, ft: 0.1,  reach: 340, body: 42, hit: 46, back: 40 } };
   // Our own yeti (an original design): shaggy white fur, an ice-blue face, a red scarf, and a four-step run with pumping arms and legs.
   function yetiArt(f) {
     var cv = document.createElement("canvas"); cv.width = cv.height = 256;
@@ -2131,6 +2131,15 @@
     if (!mon.on) return;
     var i, s, CR = CREATURE[mon.kind];
     fxStep(dt);
+    if (mon.punt) {                                                                       // on the way up: nothing the pilot does matters for a few seconds
+      var pu = mon.punt; pu.t += dt; var pt = Math.min(1, pu.t / 3.4), pe = 1 - Math.pow(1 - pt, 3);
+      if (S.mode !== "fly") mon.punt = null;
+      else {
+        S.h = pu.h0 + (pu.h1 - pu.h0) * pe; S.vu = 0;
+        if (isFpv()) F.v = [0, 0, 0]; else S.heading = (S.heading + (1 - pt) * (1 - pt) * 11 * dt) % TWO_PI;      // tumbling as it goes
+        if (pt >= 1) mon.punt = null;
+      }
+    }
     if (mon.respawn > 0) { mon.respawn -= dt; if (mon.respawn <= 0) monsterSpawn(); }
     else {
       mon.turn -= dt;
@@ -2140,6 +2149,16 @@
         if (mon.kind === "yeti" && S.mode === "fly" && Math.random() < 0.55) {            // the yeti often charges at wherever the drone is
           var ddx = (S.lon / D2R - mon.c.lon) * D2R * R * Math.cos(mon.c.lat * D2R), ddy = (S.lat / D2R - mon.c.lat) * D2R * R;
           if (Math.hypot(ddx, ddy) < CR.reach) mon.dir = Math.atan2(ddx - mon.x, ddy - mon.y);
+        }
+      }
+      if (mon.kind === "yeti" && S.mode === "fly" && !mon.punt) {
+        var qx = (S.lon / D2R - mon.c.lon) * D2R * R * Math.cos(mon.c.lat * D2R) - mon.x, qy = (S.lat / D2R - mon.c.lat) * D2R * R - mon.y, near = Math.hypot(qx, qy), low = S.h - (mon.ground === null ? mon.c.h : mon.ground);
+        mon.rest = Math.max(0, (mon.rest || 0) - dt);
+        if (!mon.rest && near < 170 && low < 130) mon.dir = Math.atan2(qx, qy);              // close and low enough to grab: it comes straight for you
+        if (!mon.rest && near < 34 && low < 115) {
+          mon.punt = { t: 0, h0: S.h, h1: Math.max(S.h, (S.home ? S.home.h : S.h - low) + 3048) }; mon.rest = 9;
+          boom(Cesium.Cartesian3.fromRadians(S.lon, S.lat, S.h - 6), 70, 14);
+          toast("The yeti got you! Enjoy 10,000 feet.", 4200);
         }
       }
       var pace = mon.flash > 0 ? 0.25 : 1;                                                // a hit staggers it for a moment
@@ -2165,9 +2184,9 @@
       if (hit) {
         mon.hp--; mon.flash = 0.3; boom(s.pos, 52, 8);
         if (mon.hp <= 0) {
-          mon.score++; mon.ent.show = false; mon.respawn = 3.5;
+          mon.score++; mon.ent.show = false; mon.respawn = CR.back || 3.5;
           boom(body, 170, 26); boom(Cesium.Cartesian3.add(body, Cesium.Cartesian3.multiplyByScalar(s.dir, -14, new Cesium.Cartesian3()), new Cesium.Cartesian3()), 110, 10, 0.16); boom(body, 230, 0, 0.3);
-          toast(mon.kind === "yeti" ? "Yeti down! It'll be back." : "Monster down! The city is safe, for a few seconds.", 2600);
+          toast(mon.kind === "yeti" ? "Yeti down!" : "Monster down! The city is safe, for a few seconds.", 2600);
         }
       } else if (s.life <= 0) boom(s.pos, 20, 0);
       if (hit || s.life <= 0) { viewer.entities.remove(s.ent); viewer.entities.remove(s.trail); mon.shots.splice(i, 1); }
@@ -2180,7 +2199,7 @@
       toast(CREATURE[kind].name + " mode on. " + (COARSE ? "Take off, find it, and tap the right stick to fire." : "Take off, find it, and click or press F to fire."), 4200); }
     $("monsterBtn").textContent = "Monster mode " + (mon.on && mon.kind === "monster" ? "on" : "off"); $("monsterBtn").classList.toggle("on", mon.on && mon.kind === "monster");
     $("yetiBtn").textContent = "Yeti mode " + (mon.on && mon.kind === "yeti" ? "on" : "off"); $("yetiBtn").classList.toggle("on", mon.on && mon.kind === "yeti");
-    $("monsterNote").hidden = !mon.on; $("monsterNote").textContent = mon.on ? (mon.kind === "yeti" ? "A yeti is running around near your drone, and it likes to charge at you." : "A monster is loose near your drone.") + " While flying, tap the right stick to fire. On a computer, click or press F." : "";
+    $("monsterNote").hidden = !mon.on; $("monsterNote").textContent = mon.on ? (mon.kind === "yeti" ? "A yeti is running around near your drone. Fly low near it and it will catch you and send you to 10,000 feet. Once you bring it down, it stays away for 40 seconds." : "A monster is loose near your drone.") + " While flying, tap the right stick to fire. On a computer, click or press F." : "";
   }
   $("monsterBtn").onclick = function () { creatureMode("monster"); };
   $("yetiBtn").onclick = function () { creatureMode("yeti"); };
@@ -3409,7 +3428,7 @@
     ["How do I make it look sharper?", "In Settings, set Picture quality to Ultra. It uses more battery and data. Fast suits older phones.", "quality sharp ultra resolution graphics fast performance slow"],
     ["How do I add this to my home screen?", "On an iPhone, open the page in Safari, tap Share, then Add to Home Screen. On Android, use the browser menu and choose Add to Home screen or Install.", "home screen install app icon iphone android"],
     ["How do I turn off the fast fly-in at takeoff?", "Open Settings and look under Extras. Tap Fly-in on takeoff to turn it off; Take off here then puts you straight above the circle.", "fly in intro takeoff race dive animation fast skip turn off"],
-    ["What are Monster mode and Yeti mode?", "Toys under Settings, Extras. Monster mode has a cartoon monster stomping around near your drone. Yeti mode has a yeti that runs fast and charges at you. While flying, tap the right stick to fire missiles, or click or press F on a computer. Five hits brings it down.", "monster yeti mode game shoot fire missile explosion extras"],
+    ["What are Monster mode and Yeti mode?", "Toys under Settings, Extras. Monster mode has a cartoon monster stomping around near your drone. Yeti mode has a yeti that runs fast and charges at you; if it catches you flying low, it knocks you up to 10,000 feet, and after you bring it down it stays away for 40 seconds. While flying, tap the right stick to fire missiles, or click or press F on a computer. Five hits brings it down.", "monster yeti mode game shoot fire missile explosion extras"],
     ["The map won't load at all.", "Check your connection, then reload. If it still fails, the map access token may have expired or run out of its monthly allowance. You can enter a different one under Settings, Map access.", "map not loading black blank token access quota error"]
   ];
   function helpRender() {
@@ -3491,7 +3510,7 @@
       html = "Scouting · " + lens + "<br>" + sun;
     }
     if (air.key) html += "<br>Airspace <b>" + (air.res ? air.res.hud.replace(/[<>&]/g, "") : air.err ? "unavailable" : "checking") + "</b>";
-    if (mon.on) html += "<br>" + CREATURE[mon.kind].name + " " + (mon.respawn > 0 ? "<b>down!</b>" : "<b>" + "\u25cf".repeat(Math.max(0, mon.hp)) + "\u25cb".repeat(Math.max(0, 5 - mon.hp)) + "</b>") + " · Score <b>" + mon.score + "</b>";
+    if (mon.on && !(mon.kind === "yeti" && mon.respawn > 0)) html += "<br>" + CREATURE[mon.kind].name + " " + (mon.respawn > 0 ? "<b>down!</b>" : "<b>" + "\u25cf".repeat(Math.max(0, mon.hp)) + "\u25cb".repeat(Math.max(0, 5 - mon.hp)) + "</b>") + " · Score <b>" + mon.score + "</b>";
     $("hud").innerHTML = html;
   }, 200);
 
