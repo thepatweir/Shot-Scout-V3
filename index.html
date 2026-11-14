@@ -419,7 +419,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.12 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.13 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -642,7 +642,7 @@
     <li><b>Export</b><span>Preview video, a three-frame storyboard, or a flight plan PDF with airspace.</span></li>
   </ul>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.12</div>
+  <div class="tap">TAP TO START · VERSION 3.13</div>
 </div>
 <div id="toast"></div>
 
@@ -3233,41 +3233,26 @@
   flyInLabel();
   function introStart(g, endHeading) {
     var c = camera.positionCartographic, O = [g.lon, g.lat], p0 = toM(O, [c.longitude / D2R, c.latitude / D2R]), h0 = c.height, h3 = g.h + 30, d = Math.hypot(p0[0], p0[1]);
-    if (!flyIn || d < 120 || !isFinite(d) || d > 60000) return false;
-    var ux = -p0[0] / d, uy = -p0[1] / d, nx = -uy, ny = ux, fx = Math.sin(endHeading), fy = Math.cos(endHeading), dh = h0 - h3;
-    var side = (fx * nx + fy * ny) >= 0 ? -1 : 1, run = Math.min(0.4 * d, 700);         // swing wide to one side, then come back across onto the final heading
-    intro = { t: 0, dur: clamp(d / 380, 3, 7), O: O, roll: 0, focal: S.focal, h0: camera.heading, g0: camera.pitch, hEnd: endHeading, gEnd: -15 * D2R,
-      P: [[p0[0], p0[1], h0],
-          [p0[0] + ux * d * 0.42 + nx * d * 0.38 * side, p0[1] + uy * d * 0.42 + ny * d * 0.38 * side, h0 - dh * 0.1],
-          [-fx * run - nx * d * 0.16 * side, -fy * run - ny * d * 0.16 * side, h3 + dh * 0.3 + 40],
-          [0, 0, h3]] };
+    if (!flyIn || d < 120 || !isFinite(d) || d > 60000 || h0 < h3 + 20) return false;
+    // one straight line: level at the scouting height until it's over the spot, then straight down. No turns, no banking.
+    intro = { t: 0, dur: clamp((d + (h0 - h3)) / 560, 3, 7), O: O, p0: p0, h0: h0, h3: h3, ground: g.h, focal: S.focal, hEnd: endHeading, g0: camera.pitch, gEnd: -15 * D2R };
     openPanel(null); setMode("play"); setClean(true); $("playBar").hidden = true; setHelpers(false);
     return true;
   }
-  function introAt(e) {
-    var P = intro.P, a = 1 - e, out = [0, 0, 0, 0, 0, 0];
-    for (var k = 0; k < 3; k++) {
-      out[k] = a * a * a * P[0][k] + 3 * a * a * e * P[1][k] + 3 * a * e * e * P[2][k] + e * e * e * P[3][k];
-      out[k + 3] = 3 * a * a * (P[1][k] - P[0][k]) + 6 * a * e * (P[2][k] - P[1][k]) + 3 * e * e * (P[3][k] - P[2][k]);
-    }
-    return out;
-  }
-  function turnTo(a, b, w) { return a + ((((b - a) % TWO_PI) + 3 * Math.PI) % TWO_PI - Math.PI) * w; }
+  function ease5(x) { x = clamp(x, 0, 1); return x * x * x * (x * (x * 6 - 15) + 10); }       // starts and stops with no jolt at all
   function introStep(dt) {
     var I = intro; I.t += dt;
-    var t = Math.min(1, I.t / I.dur), s = t * t * (3 - 2 * t), e = 1 - Math.pow(1 - s, 1.7);            // hard acceleration, then heavy braking into the hover
-    var q = introAt(e), hv = Math.atan2(q[3], q[4]), pv = clamp(Math.atan2(q[5], Math.hypot(q[3], q[4])), -1.2, 0.35);
-    var win = clamp(e / 0.12, 0, 1), wout = clamp((e - 0.72) / 0.28, 0, 1); win = win * win * (3 - 2 * win); wout = wout * wout * (3 - 2 * wout);
-    var heading = turnTo(turnTo(I.h0, hv, win), I.hEnd, wout), pitch = (I.g0 + (pv - I.g0) * win) * (1 - wout) + I.gEnd * wout;
-    var q2 = introAt(Math.min(1, e + 0.02)), turn = turnTo(0, Math.atan2(q2[3], q2[4]) - hv, 1) / 0.02;      // how hard the line is turning: bank into it
-    var want = clamp(turn * 0.55, -1.25, 1.25) * (1 - wout) * win; I.roll += (want - I.roll) * Math.min(1, dt * 7);
-    var ll = offLL(I.O, q[0], q[1]);
-    S.lon = ll[0] * D2R; S.lat = ll[1] * D2R; S.h = q[2]; S.heading = ((heading % TWO_PI) + TWO_PI) % TWO_PI;      // keeps the readout honest on the way in
-    S.focal = I.focal * (1 - 0.38 * Math.sin(Math.PI * Math.min(1, e * 1.15))); applyLens();                  // the lens widens mid-flight for the sense of speed
-    camera.setView({ destination: Cesium.Cartesian3.fromDegrees(ll[0], ll[1], q[2]), orientation: { heading: heading, pitch: pitch, roll: I.roll } });
+    var t = Math.min(1, I.t / I.dur), along = ease5(t / 0.64), down = ease5((t - 0.4) / 0.6);     // the two overlap a little, which rounds the corner into the dive
+    var x = I.p0[0] * (1 - along), y = I.p0[1] * (1 - along), h = I.h0 + (I.h3 - I.h0) * down, out = Math.hypot(x, y);
+    // the camera keeps the landing spot centred all the way in, so it tips over to look straight down in the dive, then levels out at the bottom
+    var look = Math.max(-Math.PI / 2 + 0.002, Math.atan2(I.ground - h, Math.max(out, 0.01))), lvl = ease5((t - 0.68) / 0.32), start = ease5(t / 0.08);
+    var pitch = (I.g0 + (look - I.g0) * start) * (1 - lvl) + I.gEnd * lvl, ll = offLL(I.O, x, y);
+    S.lon = ll[0] * D2R; S.lat = ll[1] * D2R; S.h = h; S.heading = ((I.hEnd % TWO_PI) + TWO_PI) % TWO_PI;      // keeps the readout honest on the way in
+    S.focal = I.focal * (1 - 0.18 * Math.sin(Math.PI * t)); applyLens();                                      // the lens opens up slightly mid-flight for the sense of speed
+    camera.setView({ destination: Cesium.Cartesian3.fromDegrees(ll[0], ll[1], h), orientation: { heading: I.hEnd, pitch: pitch, roll: 0 } });
     if (t >= 1) {
       intro = null; S.focal = I.focal; applyLens();
-      S.lon = I.O[0] * D2R; S.lat = I.O[1] * D2R; S.h = I.P[3][2]; S.heading = ((I.hEnd % TWO_PI) + TWO_PI) % TWO_PI; setGimbal(-15);
+      S.lon = I.O[0] * D2R; S.lat = I.O[1] * D2R; S.h = I.h3; setGimbal(-15);
       setHelpers(true); setClean(false); setMode("fly"); toast("Airborne, 30 m above your takeoff point");
     }
   }
