@@ -115,7 +115,9 @@
   #sunBtns::-webkit-scrollbar { display:none; }
   #sunBtns .btn { padding:7px 10px; text-align:center; }
   #timeLbl { font:800 18px var(--display); min-width:62px; }
-  .shot { display:flex; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+  .shot { display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .shot > div { flex:1 1 150px; }
+  .shot .btn { min-height:34px; padding:6px 10px; font-size:13px; }
   .shot img { width:84px; height:48px; object-fit:cover; border-radius:6px; background:#000; flex:none; }
   .shot div { flex:1; min-width:0; }
   .shot small { color:var(--dim); display:block; }
@@ -217,6 +219,26 @@
   #padMon .bar i { position:absolute; top:0; bottom:0; left:50%; width:0; background:var(--accent); }
   #padMon .ax.used { color:var(--ink); }
   #splash .upd { position:absolute; bottom:calc(env(safe-area-inset-bottom, 0px) + 64px); left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--dim); font-size:13px; }
+  /* waypoint editor */
+  #editBar { pointer-events:auto; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:10px 12px; max-width:640px; width:100%; align-self:center;
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+  #editBar .row { margin:6px 0 0; }
+  #editBar .btn { min-height:36px; padding:7px 11px; font-size:13px; }
+  #editBar #edFlow { flex:1; min-width:120px; accent-color:var(--accent); touch-action:pan-x; }
+  #edInfo { margin-top:8px; }
+  #tl { position:relative; height:40px; touch-action:none; cursor:pointer; }
+  #tl::before { content:""; position:absolute; left:0; right:0; top:18px; height:4px; border-radius:2px; background:rgba(255,255,255,.14); }
+  #tlEnd { position:absolute; left:0; top:18px; height:4px; border-radius:2px; background:rgba(244,194,13,.55); }
+  #tlKeys { position:absolute; inset:0; }
+  .tlKey { position:absolute; top:9px; width:22px; height:22px; margin-left:-11px; padding:0; border:2px solid #17130a; background:#fff; transform:rotate(45deg) scale(.72); border-radius:4px; cursor:grab; }
+  .tlKey.on { background:var(--accent); transform:rotate(45deg) scale(.95); }
+  #tlHead { position:absolute; top:2px; bottom:2px; width:2px; margin-left:-1px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.6); pointer-events:none; }
+  body.clean #editBar { display:none !important; }
+  /* help */
+  #helpQ { flex:1; min-width:0; background:#000; border:1px solid var(--line); border-radius:12px; padding:10px 12px; -webkit-user-select:text; user-select:text; touch-action:auto; }
+  #helpList details { border-bottom:1px solid var(--line); padding:10px 0; }
+  #helpList summary { cursor:pointer; font-weight:500; list-style-position:outside; }
+  #helpList p { margin:8px 0 2px; color:#d9d6cd; line-height:1.5; -webkit-user-select:text; user-select:text; }
   /* quick tour */
   #tut { position:fixed; inset:0; z-index:20; touch-action:none; }
   #tutRing { position:fixed; border:2px solid var(--accent); border-radius:14px; box-shadow:0 0 0 4000px rgba(0,0,0,.55), 0 0 22px rgba(244,194,13,.55); pointer-events:none; transition:left .25s, top .25s, width .25s, height .25s; }
@@ -293,6 +315,19 @@
     <button class="btn ghost" id="movesBtn">Moves</button>
     <button class="btn ghost" id="mapBtn">Map</button>
     <button class="btn ghost" id="cleanBtn">Hide controls</button>
+    <button class="btn ghost" id="helpBtn">? Help</button>
+  </div>
+  <div id="editBar" hidden>
+    <div id="tl"><div id="tlEnd"></div><div id="tlKeys"></div><div id="tlHead"></div></div>
+    <div class="note" id="edInfo"></div>
+    <div class="row" id="edFlowRow" hidden><span class="note">Corner</span><input id="edFlow" type="range" min="0" max="100" step="5" value="50" aria-label="How the move passes through this waypoint"><b id="edFlowLbl">natural</b></div>
+    <div class="row">
+      <button class="btn" id="edPlay">Play</button>
+      <button class="btn" id="edAdd">Add waypoint</button>
+      <button class="btn" id="edUpdate" disabled>Update</button>
+      <button class="btn" id="edDelete" disabled>Delete</button>
+      <button class="btn go" id="edDone">Done</button>
+    </div>
   </div>
 </div>
 
@@ -345,16 +380,13 @@
   <div class="note">More cells give more punch and a higher top speed.</div>
   <div class="row" style="margin-top:8px"><span class="note">Stick sensitivity</span><input id="fpvRate" type="range" min="40" max="160" step="5" value="100" aria-label="FPV stick sensitivity"><b id="fpvRateLbl">100%</b></div>
 
-  <h3>Help</h3>
-  <div class="row"><button class="btn" id="replayTut">Show the quick tour again</button></div>
-
   <h3>Extras</h3>
   <div class="row"><button class="btn" id="monsterBtn">Monster mode off</button></div>
   <div class="note" id="monsterNote" hidden>A monster is loose near your drone. While flying, tap the right stick to fire. On a computer, click or press F.</div>
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.5 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.6 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -389,6 +421,7 @@
   <div class="row" id="smoothRow" hidden><span class="note">Smoothing</span><input id="smooth" type="range" min="0" max="100" step="5" value="70" aria-label="Path smoothing"><b id="smoothLbl">70%</b></div>
   <div class="row">
     <button class="btn go" id="playBtn" disabled>Play</button>
+    <button class="btn" id="editMove" disabled>Edit waypoints</button>
     <button class="btn" id="recBtn" disabled>Export video</button>
     <button class="btn" id="saveMove" disabled>Save move</button>
   </div>
@@ -456,6 +489,13 @@
 
 <div id="pickBar" hidden><b>Tap your subject on the map</b><button class="btn" id="pickCancel">Cancel</button></div>
 
+<!-- Help -->
+<div id="helpSheet" class="sheet" hidden>
+  <div class="sheetHead"><h2>Help</h2><button class="btn" id="closeHelp">Done</button></div>
+  <div class="row"><input id="helpQ" type="search" placeholder="Ask how to do something" autocomplete="off" aria-label="Search help"><button class="btn" id="replayTut">Take the quick tour</button></div>
+  <div id="helpList"></div>
+</div>
+
 <div id="vid" hidden>
   <div class="inner">
     <div class="sheetHead"><h2>Your video</h2><button class="btn" id="vidClose">Done</button></div>
@@ -496,7 +536,7 @@
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.5</div>
+  <div class="tap">TAP TO START · VERSION 3.6</div>
 </div>
 <div id="toast"></div>
 
@@ -623,7 +663,7 @@
   // samples: [{t (s), lon, lat (rad), h (m), heading (rad), gimbal (deg), roll (rad), focal}] in time order.
   // amount 0..100. Three passes: (1) blur out the shake, (2) keep only the key points where the motion really
   // changes direction, (3) draw smooth curves through those key points. Returns evenly spaced points.
-  function smoothPath(samples, amount, outHz) {
+  function smoothPath(samples, amount, outHz, noBlur, tolOverride) {
     if (!samples || samples.length < 3) return samples || [];
     amount = Math.max(0, Math.min(100, amount));
     var HZ = 20, T = samples[samples.length - 1].t, n = Math.max(2, Math.round(T * HZ) + 1), i, j, k, NK = PATH_KEYS.length;
@@ -660,10 +700,11 @@
       blur.push(acc);
     }
     blur[0] = even[0].slice(); blur[n - 1] = even[n - 1].slice();
+    if (noBlur) blur = even.map(function (r0) { return r0.slice(); });
     // pass 2: key points. A point is kept when leaving it out would bend the path by more than the tolerance.
     var keep = [0, n - 1];
     if (amount >= 10) {
-      var EARTH = 6378137, cosLat = Math.cos(blur[0][1]), tol = 0.25 + (amount - 10) / 90 * 2.25;
+      var EARTH = 6378137, cosLat = Math.cos(blur[0][1]), tol = tolOverride || (0.25 + (amount - 10) / 90 * 2.25);
       // one "unit" of error is about 2 m of position, 2 degrees of turn or tilt, or 2 mm of lens
       var scale = [2 / (EARTH * cosLat), 2 / EARTH, 2, 2 * Math.PI / 180, 2, 2 * Math.PI / 180, 2];
       var flags = new Array(n); flags[0] = flags[n - 1] = true;
@@ -697,7 +738,45 @@
     for (i = 0; i < n; i += step) emit(i);
     if (out[out.length - 1].t < T - 1e-6) { ki = 0; emit(n - 1); out[out.length - 1].t = T; }
     out.keyPoints = m;
+    out.keys = keep.map(function (ix) { var o = { t: Math.min(T, ix / HZ), flow: 0.5 }; for (k = 0; k < NK; k++) o[PATH_KEYS[k]] = blur[ix][k]; return o; });
     return out;
+  }
+  // ---------- waypoints: every move can be reduced to a few editable key points and rebuilt from them ----------
+  // keys: [{ t, lon, lat, h, heading, gimbal, roll, focal, flow }]. flow 0 = come to rest and turn sharply, 0.5 = natural, 1 = sweep through wide.
+  function keysToPath(keys, outHz) {
+    var n = keys.length, K = PATH_KEYS.length, i, k;
+    var ks = keys.map(function (q) { var o = {}; for (var j in q) o[j] = q[j]; return o; });
+    ["heading", "roll"].forEach(function (key) {             // take the short way round between waypoints
+      for (i = 1; i < n; i++) {
+        var d = ks[i][key] - ks[i - 1][key];
+        while (d > Math.PI) { ks[i][key] -= 2 * Math.PI; d -= 2 * Math.PI; }
+        while (d < -Math.PI) { ks[i][key] += 2 * Math.PI; d += 2 * Math.PI; }
+      }
+    });
+    var T = ks[n - 1].t, slope = [];
+    for (i = 0; i < n; i++) {
+      var p0 = ks[Math.max(0, i - 1)], p1 = ks[Math.min(n - 1, i + 1)], dt = Math.max(1e-3, p1.t - p0.t), sc = (ks[i].flow === undefined ? 0.5 : ks[i].flow) * 2, sl = [];
+      for (k = 0; k < K; k++) sl.push((p1[PATH_KEYS[k]] - p0[PATH_KEYS[k]]) / dt * sc);
+      slope.push(sl);
+    }
+    var out = [], steps = Math.max(2, Math.round(T * outHz) + 1), seg = 0;
+    for (var j = 0; j < steps; j++) {
+      var t = Math.min(T, j / outHz); if (j === steps - 1) t = T;
+      while (seg < n - 2 && ks[seg + 1].t <= t) seg++;
+      var a = ks[seg], b = ks[seg + 1], len = Math.max(1e-3, b.t - a.t), x = Math.max(0, Math.min(1, (t - a.t) / len));
+      var x2 = x * x, x3 = x2 * x, h00 = 2 * x3 - 3 * x2 + 1, h10 = x3 - 2 * x2 + x, h01 = -2 * x3 + 3 * x2, h11 = x3 - x2, o = { t: t };
+      for (k = 0; k < K; k++) o[PATH_KEYS[k]] = h00 * a[PATH_KEYS[k]] + h10 * len * slope[seg][k] + h01 * b[PATH_KEYS[k]] + h11 * len * slope[seg + 1][k];
+      o.focal = Math.max(8, o.focal); o.gimbal = Math.max(-90, Math.min(90, o.gimbal));
+      out.push(o);
+    }
+    out.keyPoints = n;
+    return out;
+  }
+  // Find a small set of waypoints that reproduces an existing path closely (at most about 14, loosening the fit until it gets there).
+  function keysFromPath(path) {
+    var tols = [1.2, 1.8, 2.6, 3.6, 5, 7], r = null;
+    for (var i = 0; i < tols.length; i++) { r = smoothPath(path, 50, 10, true, tols[i]); if (r.keys.length <= 14) break; }
+    return r.keys;
   }
   // Point on a path at time x seconds (linear between the smoothed points).
   function pathAt(path, x) {
@@ -892,7 +971,7 @@
   }
   if (typeof module !== "undefined" && typeof window === "undefined") {
     module.exports = { sunPosition: sunPosition, sunEvents: sunEvents, instant: instant, tzText: tzText, hhmm: hhmm,
-                       FPV: FPV, fpvStep: fpvStep, fpvShape: fpvShape, fpvThrottle: fpvThrottle, fpvSetPack: fpvSetPack, FPV_PACKS: FPV_PACKS, smoothPath: smoothPath, pathAt: pathAt, SHOTS: SHOTS, shotPath: shotPath, pathStats: pathStats, fitDuration: fitDuration, SHOT_LIMIT: SHOT_LIMIT,
+                       FPV: FPV, fpvStep: fpvStep, fpvShape: fpvShape, fpvThrottle: fpvThrottle, fpvSetPack: fpvSetPack, FPV_PACKS: FPV_PACKS, smoothPath: smoothPath, pathAt: pathAt, keysToPath: keysToPath, keysFromPath: keysFromPath, SHOTS: SHOTS, shotPath: shotPath, pathStats: pathStats, fitDuration: fitDuration, SHOT_LIMIT: SHOT_LIMIT,
                        routeBuild: routeBuild, routeAt: routeAt, routeFromSaved: routeFromSaved, CAR_SHOTS: CAR_SHOTS, carShotPath: carShotPath, aimAt: aimAt, worldLL: worldLL, llDelta: llDelta, qLevel: qLevel, qHeading: qHeading, qRot: qRot, worldPx: worldPx }; return;
   }
 
@@ -942,7 +1021,7 @@
   var deviceTz = -new Date().getTimezoneOffset();
   var S = { mode: "scout", lon: 0, lat: 0, h: 0, heading: 0, gimbal: -15, gimbalT: -15, bank: 0, nose: 0, flown: false,
             vf: 0, vr: 0, vu: 0, vy: 0, home: null, focal: 24, prevFocal: 24, aspectIx: 0, speed: "sport", tz: deviceTz, hfov: 1,
-            sunPath: false, sunCenter: null, moveA: null, moveB: null, movePath: null, moveRaw: null, playT: 0, playDur: 10, playPaused: false, target: null, moveKind: null, genName: null, moveCar: null, returnTo: null };
+            sunPath: false, sunCenter: null, moveA: null, moveB: null, movePath: null, moveRaw: null, playT: 0, playDur: 10, playPaused: false, target: null, moveKind: null, genName: null, moveCar: null, returnTo: null, keys: null };
   var SPEEDS = { cine:   { h: 3,  v: 1.5, y: 20,  label: "Cine" },
                  normal: { h: 10, v: 4,   y: 60,  label: "Normal" },
                  sport:  { h: 19, v: 8,   y: 90,  label: "Sport" },
@@ -1000,6 +1079,7 @@
   var mapStarted = false;
   function startMap() {
     if (mapStarted) return; mapStarted = true;
+    if (window.__shotScoutDark) setTimeout(function () { toast("It's dark there right now, so the light is set to golden hour. Tap the sun icon, then Now, for the real time.", 6000); }, 1200);
     Cesium.createGooglePhotorealistic3DTileset().then(function (ts) {
       tileset = ts; scene.primitives.add(ts); applyQuality();
       try {
@@ -1232,6 +1312,7 @@
     $("searchRow").hidden = air; $("cross").hidden = air;
     $("takeoffBtn").hidden = air; $("flyViewBtn").hidden = air; $("resumeBtn").hidden = air || !S.flown;
     $("scoutBtn").hidden = !fly; $("homeBtn").hidden = !fly; $("speedBtn").hidden = !fly;
+    if (typeof edit !== "undefined" && edit) editLayout();
     if (air && typeof droneEntity !== "undefined" && droneEntity) droneEntity.show = false;
     if (fly) { S.flown = true; S.vf = S.vr = S.vu = S.vy = 0; if (isFpv()) fpvReset(false); }
     if (!air) { S.bank = 0; S.nose = 0; }
@@ -1533,6 +1614,7 @@
     $("durLbl").textContent = S.playDur + " s";
     $("setA").classList.toggle("on", !!S.moveA); $("setB").classList.toggle("on", !!S.moveB);
     $("playBtn").disabled = !(S.moveA && S.moveB); $("saveMove").disabled = !(S.moveA && S.moveB); $("recBtn").disabled = !(S.moveA && S.moveB);
+    $("editMove").disabled = !(S.moveA && S.moveB);
     drawPathLine();
     if (S.moveA && S.moveB) {
       var d = moveDistance();
@@ -1544,13 +1626,14 @@
     } else if (S.moveB) { $("moveInfo").textContent = "End set. Now frame the opening and tap Set start.";
     } else { $("moveInfo").textContent = "No move yet. Create one above."; $("smoothRow").hidden = true; }
   }
-  $("setA").onclick = function () { S.moveRaw = null; S.moveCar = null; S.moveKind = null; S.genName = null; if (S.movePath) { S.movePath = null; S.moveB = null; } S.moveA = captureState(); updateMoveInfo(); toast("Start set"); };
-  $("setB").onclick = function () { S.moveRaw = null; S.moveCar = null; S.moveKind = null; S.genName = null; if (S.movePath) { S.movePath = null; S.moveA = null; } S.moveB = captureState(); updateMoveInfo(); toast("End set"); };
+  $("setA").onclick = function () { S.moveRaw = null; S.keys = null; S.moveCar = null; S.moveKind = null; S.genName = null; if (S.movePath) { S.movePath = null; S.moveB = null; } S.moveA = captureState(); updateMoveInfo(); toast("Start set"); };
+  $("setB").onclick = function () { S.moveRaw = null; S.keys = null; S.moveCar = null; S.moveKind = null; S.genName = null; if (S.movePath) { S.movePath = null; S.moveA = null; } S.moveB = captureState(); updateMoveInfo(); toast("End set"); };
 
   var smoothAmt = clamp(store.get("smooth") === null ? 70 : +store.get("smooth"), 0, 100);
   // Rebuild the smoothed path from the flight as it was actually flown, at the current slider amount.
   function applySmoothing() {
     if (!S.moveRaw) return;
+    S.keys = null;
     var path = smoothPath(S.moveRaw, smoothAmt, 10), a = path[0], b = path[path.length - 1];
     S.movePath = path;
     S.moveA = { lon: a.lon, lat: a.lat, h: a.h, heading: a.heading, gimbal: a.gimbal, focal: Math.round(a.focal) };
@@ -1568,7 +1651,7 @@
     if (!cap) return;
     clearInterval(cap.timer); var raw = cap.samples, capCar = cap.car || null; cap = null; $("pathStop").hidden = true;
     if (raw.length < 10 || raw[raw.length - 1].t < 1.5) { toast("That was too short to make a move. Fly for at least a couple of seconds."); return; }
-    S.moveRaw = raw; S.moveCar = capCar; S.moveKind = null; S.genName = null; applySmoothing();
+    S.moveRaw = raw; S.keys = null; S.moveCar = capCar; S.moveKind = null; S.genName = null; applySmoothing();
     var b = S.movePath[S.movePath.length - 1];
     S.playDur = clamp(Math.round(b.t), 3, 120); $("dur").value = S.playDur;
     renderMoves(); updateMoveInfo(); openPanel("moveSheet");
@@ -1599,28 +1682,30 @@
       var row = document.createElement("div"); row.className = "shot";
       var info = document.createElement("div"), name = document.createElement("b"), meta = document.createElement("small");
       name.textContent = m.name;
- meta.textContent = (m.gen ? m.gen + " · " : m.path ? "Flown · " : "Point to point · ") + (m.car ? "with car · " : "") + m.dur + " s · " + Math.round(m.A.focal) + "mm to " + Math.round(m.B.focal) + "mm";
+ meta.textContent = (m.gen ? m.gen + " · " : (m.path || m.keys) ? "Flown · " : "Point to point · ") + (m.car ? "with car · " : "") + m.dur + " s · " + Math.round(m.A.focal) + "mm to " + Math.round(m.B.focal) + "mm";
       info.appendChild(name); info.appendChild(meta);
       var play = document.createElement("button"); play.className = "btn"; play.textContent = "Play";
       play.onclick = function () {
-        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; S.moveKind = m.kind || null; S.genName = m.gen || null; S.returnTo = null;
-        S.moveCar = m.car ? { route: routeFromSaved(m.car.pts), speed: m.car.speed, t0: m.car.t0 } : null; $("dur").value = m.dur; updateMoveInfo(); $("playBtn").click();
+        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; S.moveKind = m.kind || null; S.genName = m.gen || null; S.returnTo = null; S.keys = m.keys ? m.keys.map(function (q) { var o = {}; for (var j in q) o[j] = q[j]; return o; }) : null; if (S.keys) S.movePath = keysToPath(S.keys, 10);
+        S.moveCar = m.car ? { route: routeFromSaved(m.car.pts), speed: m.car.speed, t0: m.car.t0 } : null; $("dur").value = m.dur; updateMoveInfo(); if (!play.loadOnly) $("playBtn").click();
       };
       var vid = document.createElement("button"); vid.className = "btn"; vid.textContent = "Export";
       vid.onclick = function () {
-        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; S.moveKind = m.kind || null; S.genName = m.gen || null; S.returnTo = null;
+        S.moveA = m.A; S.moveB = m.B; S.movePath = m.path || null; S.moveRaw = null; S.playDur = m.dur; S.moveKind = m.kind || null; S.genName = m.gen || null; S.returnTo = null; S.keys = m.keys ? m.keys.map(function (q) { var o = {}; for (var j in q) o[j] = q[j]; return o; }) : null; if (S.keys) S.movePath = keysToPath(S.keys, 10);
         S.moveCar = m.car ? { route: routeFromSaved(m.car.pts), speed: m.car.speed, t0: m.car.t0 } : null; $("dur").value = m.dur; updateMoveInfo(); S.recName = m.name; startMove(true);
       };
       var del = document.createElement("button"); del.className = "btn"; del.textContent = "Delete";
       del.onclick = function () { var all = loadMoves(); all.splice(i, 1); store.set("moves", JSON.stringify(all)); renderMoves(); };
-      row.appendChild(info); row.appendChild(play); row.appendChild(vid); row.appendChild(del); box.appendChild(row);
+      var edt = document.createElement("button"); edt.className = "btn"; edt.textContent = "Edit";
+      edt.onclick = function () { play.loadOnly = true; play.onclick(); play.loadOnly = false; openEditor(); };
+      row.appendChild(info); row.appendChild(play); row.appendChild(edt); row.appendChild(vid); row.appendChild(del); box.appendChild(row);
     });
   }
   $("saveMove").onclick = function () {
     if (!(S.moveA && S.moveB)) return;
     var all = loadMoves(), n = all.length + 1;
     while (all.some(function (m) { return m.name === "Move " + n; })) n++;
-    all.push({ name: "Move " + n, A: S.moveA, B: S.moveB, dur: S.playDur, path: S.movePath || null, kind: S.moveKind || null, gen: S.moveRaw ? null : (S.genName || null),
+    all.push({ name: "Move " + n, A: S.moveA, B: S.moveB, dur: S.playDur, path: S.keys ? null : (S.movePath || null), keys: S.keys || null, kind: S.moveKind || null, gen: S.moveRaw ? null : (S.genName || null),
                car: S.moveCar ? { pts: S.moveCar.route.pts.map(function (q) { return [+q.lon.toFixed(6), +q.lat.toFixed(6), +q.h.toFixed(1)]; }), speed: S.moveCar.speed, t0: S.moveCar.t0 } : null });
     toast(store.set("moves", JSON.stringify(all)) ? "Saved as Move " + n : "Couldn't save: this device's storage for the app is full");
     renderMoves();
@@ -1659,6 +1744,7 @@
       var wasRec = S.wantRec; S.wantRec = false;
       exitPlay();
       if (wasRec) setTimeout(stopRecording, 200);
+      else if (S.returnTo === "edit") { edit.sel = -1; edit.t = moveLen(); drawKeyDots(); drawTimeline(); }
       else if (S.returnTo) openPanel(S.returnTo);           // back to the shot list, ready to try another
       else toast("Move finished. Open Moves to play it again, export a video or save it.");
     }
@@ -1888,7 +1974,7 @@
   }
   // Guides are for planning; they're hidden while a move plays so they never end up in a video.
   function setHelpers(show) {
-    [pathLine, targetEnt, car.line, car.ents && car.ents.dot, typeof homeEntity !== "undefined" ? homeEntity : null].forEach(function (e) { if (e) e.show = show; });
+    [pathLine, targetEnt, car.line, car.ents && car.ents.dot, typeof homeEntity !== "undefined" ? homeEntity : null].concat(edit.dots).forEach(function (e) { if (e) e.show = show; });
   }
 
   // ---------- target shots ----------
@@ -1934,7 +2020,7 @@
   // Put a generated path in place as the current move.
   function setGeneratedMove(path, kind, name, carInfo) {
     var a = path[0], b = path[path.length - 1];
-    S.movePath = path; S.moveRaw = null; S.moveKind = kind; S.genName = name; S.moveCar = carInfo || null; S.recName = name;
+    S.movePath = path; S.moveRaw = null; S.keys = null; S.moveKind = kind; S.genName = name; S.moveCar = carInfo || null; S.recName = name;
     S.moveA = { lon: a.lon, lat: a.lat, h: a.h, heading: a.heading, gimbal: a.gimbal, focal: Math.round(a.focal) };
     S.moveB = { lon: b.lon, lat: b.lat, h: b.h, heading: b.heading, gimbal: b.gimbal, focal: Math.round(b.focal) };
     S.playDur = clamp(Math.round(b.t), 3, 120); $("dur").value = S.playDur;
@@ -2137,6 +2223,201 @@
   };
   window.addEventListener("resize", function () { if (!$("routeEd").hidden) edDraw(); });
   carButtons();
+
+  // ---------- waypoint editor: a timeline of key points you can scrub, reframe, add to, remove and retime ----------
+  var edit = { on: false, sel: -1, t: 0, dots: [], drag: null };
+  function moveLen() { return S.movePath ? S.movePath[S.movePath.length - 1].t : S.playDur; }
+  function keyFrom(st, t, flow) {
+    return { t: t, lon: st.lon, lat: st.lat, h: st.h, heading: st.heading, gimbal: st.gimbal, roll: 0, focal: Math.round(st.focal), flow: flow };
+  }
+  // Make sure the current move has waypoints (and a path to scrub along), without changing how it flies.
+  function ensureKeys() {
+    if (S.keys && S.keys.length >= 2) return;
+    if (S.movePath) {
+      var src = (S.moveRaw && S.movePath.keys) ? S.movePath.keys : keysFromPath(S.movePath);
+      S.keys = src.map(function (q) { var o = {}; for (var j in q) o[j] = q[j]; return o; });
+    } else {
+      S.keys = [keyFrom(S.moveA, 0, 0), keyFrom(S.moveB, S.playDur, 0)];      // point to point: start and end, both at rest
+      S.movePath = keysToPath(S.keys, 10); S.genName = "Point to point";
+    }
+    var end = S.keys[S.keys.length - 1].t;            // the duration slider may have stretched the move since: make the waypoints' timing match it
+    if (end > 0 && Math.abs(end - S.playDur) > 0.6) { var sc = S.playDur / end; S.keys.forEach(function (q) { q.t *= sc; }); S.movePath = keysToPath(S.keys, 10); drawPathLine(); }
+  }
+  // After any change to the waypoints: rebuild the path they describe and refresh everything that shows it.
+  function rebuildFromKeys() {
+    var K = S.keys; K.sort(function (a, b) { return a.t - b.t; });
+    var t0 = K[0].t; if (t0) K.forEach(function (q) { q.t -= t0; });
+    var base = S.genName || (S.moveRaw || S.movePath ? "Your flight" : "Point to point");
+    S.movePath = keysToPath(K, 10); S.moveRaw = null;
+    if (!/edited$/.test(base)) base += ", edited";
+    S.genName = base; S.recName = base;
+    var a = S.movePath[0], b = S.movePath[S.movePath.length - 1];
+    S.moveA = { lon: a.lon, lat: a.lat, h: a.h, heading: a.heading, gimbal: a.gimbal, focal: Math.round(a.focal) };
+    S.moveB = { lon: b.lon, lat: b.lat, h: b.h, heading: b.heading, gimbal: b.gimbal, focal: Math.round(b.focal) };
+    S.playDur = clamp(Math.round(b.t), 3, 120); $("dur").value = S.playDur;
+    updateMoveInfo(); drawKeyDots(); drawTimeline();
+  }
+  function drawKeyDots() {
+    edit.dots.forEach(function (e) { viewer.entities.remove(e); }); edit.dots = [];
+    if (!edit.on || !S.keys) return;
+    S.keys.forEach(function (q, i) {
+      var on = i === edit.sel;
+      edit.dots.push(viewer.entities.add({ position: Cesium.Cartesian3.fromRadians(q.lon, q.lat, q.h),
+        point: { pixelSize: on ? 17 : 11, color: on ? Cesium.Color.fromCssColorString("#f4c20d") : Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: String(i + 1), font: "600 12px sans-serif", pixelOffset: new Cesium.Cartesian2(0, -16), fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
+                 style: Cesium.LabelStyle.FILL_AND_OUTLINE, disableDepthTestDistance: Number.POSITIVE_INFINITY } }));
+    });
+    if (S.mode === "play") edit.dots.forEach(function (e) { e.show = false; });
+  }
+  function tlSpan() { return (edit.drag && edit.drag.span) || moveLen() * 1.12; }     // a little room past the end, so the last waypoint can be dragged later
+  function flowWord(f) { return f < 0.15 ? "stop and turn" : f < 0.4 ? "tight" : f < 0.65 ? "natural" : "wide sweep"; }
+  function drawTimeline() {
+    if (!edit.on || !S.keys) return;
+    var tl = $("tlKeys"), span = tlSpan(), n = S.keys.length;
+    if (tl.children.length !== n) {
+      tl.innerHTML = "";
+      for (var i = 0; i < n; i++) { var b = document.createElement("button"); b.className = "tlKey"; b.setAttribute("data-i", i); b.setAttribute("aria-label", "Waypoint " + (i + 1)); tl.appendChild(b); }
+    }
+    for (var j = 0; j < n; j++) { var el = tl.children[j]; el.style.left = (S.keys[j].t / span * 100) + "%"; el.className = "tlKey" + (j === edit.sel ? " on" : ""); el.setAttribute("data-i", j); }
+    $("tlHead").style.left = (edit.t / span * 100) + "%"; $("tlEnd").style.width = (moveLen() / span * 100) + "%";
+    var has = edit.sel >= 0 && edit.sel < n;
+    $("edUpdate").disabled = !has; $("edDelete").disabled = !has || n <= 2; $("edFlowRow").hidden = !has;
+    if (has) { var f = S.keys[edit.sel].flow === undefined ? 0.5 : S.keys[edit.sel].flow; $("edFlow").value = Math.round(f * 100); $("edFlowLbl").textContent = flowWord(f); }
+    $("edInfo").textContent = has ? "Waypoint " + (edit.sel + 1) + " of " + n + " at " + S.keys[edit.sel].t.toFixed(1) + " s. Fly to reframe it, then tap Update."
+                                  : edit.t.toFixed(1) + " s of " + moveLen().toFixed(1) + " s. Tap a waypoint to select it, or Add waypoint to make one here.";
+  }
+  // Put the camera (and the drone) where the move is at time t, ready to be flown from there.
+  function showPose(t) {
+    poseAt(clamp(t / moveLen(), 0, 1));
+    S.vf = S.vr = S.vu = S.vy = 0; S.focal = Math.round(S.focal);
+    setGimbal(clamp(Math.round(S.gimbal), +$("gimbal").min, +$("gimbal").max));
+    if (isFpv()) fpvReset(false);
+    buildLenses(); applyLens();
+  }
+  function selectKey(i) { edit.sel = i; edit.t = S.keys[i].t; showPose(edit.t); drawKeyDots(); drawTimeline(); }
+  function editLayout() {
+    var on = !!(edit && edit.on);
+    $("editBar").hidden = !(on && S.mode === "fly"); $("actions").hidden = on; $("actions2").hidden = on;
+  }
+  function openEditor() {
+    if (!(S.moveA && S.moveB)) { toast("Create a move first"); return; }
+    ensureKeys();
+    if (!S.home) setHome(S.moveA.lon / D2R, S.moveA.lat / D2R, S.moveA.h - 30);
+    edit.on = true; openPanel(null); setClean(false);
+    if (S.mode !== "fly") setMode("fly"); else editLayout();
+    selectKey(0);
+    toast("Drag along the timeline to scrub. Tap a waypoint, fly to reframe, then tap Update.", 4600);
+  }
+  function closeEditor() { edit.on = false; edit.sel = -1; drawKeyDots(); editLayout(); }
+  $("editMove").onclick = openEditor;
+  $("edDone").onclick = function () { closeEditor(); renderMoves(); updateMoveInfo(); openPanel("moveSheet"); };
+  $("edPlay").onclick = function () { S.returnTo = "edit"; startMove(false); };
+  $("edUpdate").onclick = function () {
+    var q = S.keys[edit.sel]; if (!q) return;
+    var st = captureState(), keep = { t: q.t, flow: q.flow }, nk = keyFrom(st, keep.t, keep.flow);
+    S.keys[edit.sel] = nk; rebuildFromKeys(); toast("Waypoint " + (edit.sel + 1) + " updated");
+  };
+  $("edAdd").onclick = function () {
+    var st = captureState(), T = moveLen(), t = edit.t, K = S.keys, last = K[K.length - 1];
+    if (t >= T - 0.05) {                       // at the end: extend the move to wherever you've flown
+      var d = llDelta(last.lon / D2R, last.lat / D2R, st.lon / D2R, st.lat / D2R), dist = Math.hypot(d[0], d[1], st.h - last.h), sp = Math.max(3, pathStats(S.movePath).dist / Math.max(1, T));
+      t = T + clamp(dist / sp, 2, 20);
+    } else if (K.some(function (q) { return Math.abs(q.t - t) < 0.25; })) { toast("There's already a waypoint here. Select it and tap Update."); return; }
+    var nk = keyFrom(st, t, 0.5); K.push(nk); rebuildFromKeys();
+    edit.sel = S.keys.indexOf(nk); edit.t = nk.t; drawKeyDots(); drawTimeline(); toast("Waypoint added");
+  };
+  $("edDelete").onclick = function () {
+    if (S.keys.length <= 2) { toast("A move needs at least two waypoints"); return; }
+    S.keys.splice(edit.sel, 1); edit.sel = -1; rebuildFromKeys(); edit.t = clamp(edit.t, 0, moveLen()); showPose(edit.t); drawTimeline();
+  };
+  $("edFlow").oninput = function () { $("edFlowLbl").textContent = flowWord(+this.value / 100); };
+  $("edFlow").onchange = function () { var q = S.keys[edit.sel]; if (!q) return; q.flow = +this.value / 100; rebuildFromKeys(); };
+  (function () {
+    var tl = $("tl");
+    function tAt(e) { var r = tl.getBoundingClientRect(); return clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1) * tlSpan(); }
+    tl.addEventListener("pointerdown", function (e) {
+      if (!edit.on) return;
+      var i = e.target && e.target.getAttribute ? e.target.getAttribute("data-i") : null;
+      try { tl.setPointerCapture(e.pointerId); } catch (x) {}
+      if (i !== null && i !== undefined && i !== "") { i = +i; selectKey(i); edit.drag = { id: e.pointerId, i: i, x: e.clientX, moved: false, span: moveLen() * 1.12 }; }
+      else { edit.drag = { id: e.pointerId, scrub: true }; edit.sel = -1; edit.t = clamp(tAt(e), 0, moveLen()); showPose(edit.t); drawKeyDots(); drawTimeline(); }
+      e.preventDefault();
+    });
+    tl.addEventListener("pointermove", function (e) {
+      var g = edit.drag; if (!g || e.pointerId !== g.id) return;
+      if (g.scrub) { edit.t = clamp(tAt(e), 0, moveLen()); showPose(edit.t); drawTimeline(); return; }
+      if (!g.moved && Math.abs(e.clientX - g.x) < 6) return;
+      if (g.i === 0) return;                                   // the first waypoint is always the start
+      g.moved = true;
+      var K = S.keys, lo = K[g.i - 1].t + 0.3, hi = g.i < K.length - 1 ? K[g.i + 1].t - 0.3 : g.span;
+      K[g.i].t = clamp(tAt(e), lo, Math.max(lo, hi)); edit.t = K[g.i].t; drawTimeline();
+    });
+    function up(e) {
+      var g = edit.drag; if (!g || e.pointerId !== g.id) return;
+      if (g.moved) { var key = S.keys[g.i]; edit.drag = null; rebuildFromKeys(); edit.sel = S.keys.indexOf(key); edit.t = key.t; showPose(edit.t); drawKeyDots(); }
+      edit.drag = null; drawTimeline();
+    }
+    tl.addEventListener("pointerup", up); tl.addEventListener("pointercancel", up);
+  })();
+
+  // ---------- help: a searchable set of answers ----------
+  var HELP = [
+    ["How do I find a location?", "Type a place name or paste coordinates (latitude, longitude) in the search box at the top and tap Go. The search box is only shown while scouting.", "search place address coordinates go find location"],
+    ["How do I move around the map while scouting?", "On a phone: drag to move, pinch to zoom, two fingers to tilt and rotate. On a computer: drag to move, scroll to zoom, hold Ctrl and drag to tilt.", "pan zoom tilt rotate scout map move look"],
+    ["How do I take off?", "Put the yellow circle on the ground where you'd launch and tap Take off here. The drone starts 30 m above that spot. Or tap Fly from view to start flying from exactly where the scouting view is.", "take off launch start fly circle fly from view"],
+    ["How do the on-screen sticks work?", "Left stick: up and down climbs and descends, left and right turns. Right stick: up and down flies forward and back, left and right slides sideways. The slider on the right edge tilts the camera.", "sticks controls joystick phone touch climb turn forward tilt slider"],
+    ["What are the keyboard and mouse controls?", "W and S fly forward and back, A and D slide sideways. Space or E climbs, Shift or Q descends. The arrow keys climb and turn. Hold the right mouse button and move the mouse to look around. The mouse wheel tilts the camera.", "keyboard mouse wasd keys computer desktop pc controls right click wheel"],
+    ["What do Cine, Normal, Sport and FPV mean?", "The Mode button sets how the drone flies. Cine is slow and gentle, Normal is a typical camera drone, Sport is faster. FPV is acro: no self-levelling, a wide lens, and it falls unless you hold throttle.", "mode speed cine normal sport fpv fast slow"],
+    ["How does FPV mode work?", "The sticks set rotation rates and nothing levels the drone for you. The left stick is throttle and yaw and stays where you leave it, with hover at its centre. The right stick is pitch and roll. Change battery power and stick sensitivity under Settings, FPV drone.", "fpv acro throttle gravity falls rates sensitivity battery 4s 6s 12s"],
+    ["How do I change the lens?", "Tap a focal length in the row at the top. Tap Custom (the + on a phone) to type any focal length. The frame lines show exactly what that lens sees.", "lens focal length mm zoom custom frame"],
+    ["What are the lines on the screen?", "They mark the frame: what the chosen lens would capture, with thirds for composition. Everything outside is dimmed. Change the shape (16:9, 2.39:1, 4:3, 9:16) under Settings, Frame shape.", "frame lines guide grid thirds aspect ratio shape letterbox"],
+    ["How do I change the time of day?", "Tap the sun icon at the top right. Set the date, drag the time slider, or use the Jump to buttons for sunrise, golden hour, noon, sunset and blue hour.", "time day light sun date golden hour sunset sunrise blue hour"],
+    ["Why did the app open at golden hour?", "If it's dark at the location when you open the app, it starts shortly before that day's sunset so you can see the scene. Tap the sun icon and then Now for the real time.", "dark night opened golden hour sunset real time now"],
+    ["How do I see where the sun will be?", "Tap the sun icon and turn on Sun path. It draws the sun's arc over the location with the sunrise and sunset directions. The readout at the top also shows the sun's height and compass bearing.", "sun path arc direction bearing sunrise sunset where"],
+    ["The times look wrong for this location.", "The clock is estimated from the map position. Tap the sun icon and adjust Time zone of this location with the minus and plus buttons.", "time zone wrong clock hours utc offset"],
+    ["What do the numbers at the top mean?", "Height is metres above your takeoff point. Distance is how far the drone is from it. Then speed, compass heading, the lens, the time and the sun. Height turns orange above 122 m and distance above 500 m.", "readout hud height distance speed heading numbers orange 122 limit"],
+    ["How do I get back to the takeoff point?", "While flying, tap Return home. To leave the drone and look around freely, tap Scout; Resume flight puts you back in the drone.", "home return takeoff scout resume lost"],
+    ["How do I see where I am on a map?", "Tap Map for a small street map with the drone at the centre, an arrow for its heading and a wedge for what the lens sees. Tap the map to enlarge it.", "map top down position where minimap heading"],
+    ["How do I hide the buttons?", "Tap Hide controls for a clean viewfinder. Tap Show controls at the top right to bring them back.", "hide controls clean view buttons screen clutter viewfinder"],
+    ["How do I make a camera move?", "Tap Moves. You can record yourself flying, set a start and an end, pick a ready-made shot around a target, or follow a car. Then Play it, edit its waypoints, export a video or save it.", "move camera path create make plan shot"],
+    ["How do I record my own flying as a move?", "In Moves, tap Record my flight, fly the shot, then tap Stop recording at the top. The app smooths out the shake. Use the Smoothing slider to make it smoother or closer to what you flew.", "record flight fly yourself smoothing jitter shake stop recording"],
+    ["How do I make a start-to-end move?", "Frame the opening shot and tap Set start in Moves. Frame the ending and tap Set end. Set the duration and tap Play.", "point to point start end set a b duration"],
+    ["How do I edit a move?", "In Moves, tap Edit waypoints. Drag along the timeline to scrub through the move. Tap a waypoint to jump to it, fly to reframe it, then tap Update. Add waypoint makes a new one at the playhead; drag a waypoint along the timeline to change its timing.", "edit waypoints timeline keyframe adjust change path scrub update retime"],
+    ["What does the Corner slider do?", "It sets how the move passes through the selected waypoint. Stop and turn comes to rest there and changes direction sharply; natural flows through; wide sweep takes a broader arc at speed.", "corner flow curve ease smooth sharp waypoint slider"],
+    ["How do target shots work?", "In Moves, tap Choose a target shot. Tap Pick a target, then tap your subject on the map. Set the subject size, then tap any shot to preview it. Try a variation changes direction, distance and height.", "target shots orbit dive presets subject pick variation"],
+    ["How do I follow a car?", "In Moves, tap Set up a car, then Draw the route and tap along the road on the street map. Choose a follow shot, or tap Start the car and fly it yourself. Camera lock keeps the camera on the car while you fly.", "car follow route chase draw road camera lock vehicle"],
+    ["How do I export a video?", "In Moves, tap Export video. The app plays the move and records what's inside the frame lines, then shows it with Save and Share buttons. A computer gives smoother results than a phone.", "export video save record mp4 webm download share"],
+    ["Why is my video a .webm file?", "Some browsers can't make MP4. Chrome, Edge and Safari export MP4. If yours saved WebM, try one of those.", "webm mp4 firefox format file type"],
+    ["How do I stop a move that's playing?", "Tap Stop move at the top. Then choose Back to start, Stay here to take control where the drone is, or Keep playing.", "stop cancel move playing back to start stay"],
+    ["Where are my saved moves?", "In Moves, under Saved moves. They're stored on this device and browser only, so they don't appear on your other devices.", "saved moves where lost device storage sync"],
+    ["How do I use a game controller or radio?", "Plug it into a computer, move a stick, then open Settings and look under Game controller or radio. Ordinary gamepads work straight away. For a radio, tap Set up sticks and follow the prompts. The bars show what the app is receiving.", "controller gamepad radio tx16s dji usb joystick setup sticks"],
+    ["How do I put camera tilt on a controller wheel or slider?", "Give the control its own channel on the radio, then in Settings tap Set up tilt wheel and move it fully up. Choose tilt angle if it stays where you put it, or tilt speed if it springs back to centre.", "tilt wheel slider knob controller gimbal channel angle speed"],
+    ["The map looks blurry or melted in places.", "Detail streams in as you fly. Wait a few seconds or slow down. If it stays blurry, set Picture quality to Standard in Settings and reload. A message appears if the map service is refusing tiles.", "blurry tiles loading melted low detail quality map"],
+    ["How do I make it look sharper?", "In Settings, set Picture quality to Ultra. It uses more battery and data. Fast suits older phones.", "quality sharp ultra resolution graphics fast performance slow"],
+    ["How do I add this to my home screen?", "On an iPhone, open the page in Safari, tap Share, then Add to Home Screen. On Android, use the browser menu and choose Add to Home screen or Install.", "home screen install app icon iphone android"],
+    ["What is Monster mode?", "A toy under Settings, Extras. A cartoon monster stomps around near your drone. While flying, tap the right stick to fire, or click or press F on a computer.", "monster mode game shoot fire extras"],
+    ["The map won't load at all.", "Check your connection, then reload. If it still fails, the map access token may have expired or run out of its monthly allowance. You can enter a different one under Settings, Map access.", "map not loading black blank token access quota error"]
+  ];
+  function helpRender() {
+    var q = $("helpQ").value.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(function (w) { return w.length > 1 && ["how", "do", "the", "to", "is", "it", "my", "can", "what", "why", "does", "and", "of", "in", "on"].indexOf(w) < 0; });
+    var scored = HELP.map(function (hlp, i) {
+      var sc = 0, qq = hlp[0].toLowerCase(), aa = hlp[1].toLowerCase(), kk = hlp[2];
+      q.forEach(function (w) { var stem = w.length > 4 ? w.replace(/(ing|es|s)$/, "") : w; if (kk.indexOf(stem) >= 0) sc += 3; if (qq.indexOf(stem) >= 0) sc += 3; if (aa.indexOf(stem) >= 0) sc += 1; });
+      return { i: i, sc: sc };
+    });
+    var list = q.length ? scored.filter(function (x) { return x.sc > 0; }).sort(function (a, b) { return b.sc - a.sc; }).slice(0, 6) : scored;
+    var box = $("helpList"); box.innerHTML = "";
+    if (!list.length) { var none = document.createElement("div"); none.className = "note"; none.textContent = "No answer matches that yet. Try different words, or clear the box to browse everything."; box.appendChild(none); return; }
+    list.forEach(function (x, n) {
+      var d = document.createElement("details"), s = document.createElement("summary"), p = document.createElement("p");
+      s.textContent = HELP[x.i][0]; p.textContent = HELP[x.i][1]; d.appendChild(s); d.appendChild(p);
+      if (q.length && n === 0) d.open = true;
+      box.appendChild(d);
+    });
+  }
+  $("helpQ").oninput = helpRender;
+  $("helpBtn").onclick = function () { if (!$("helpSheet").hidden) { openPanel(null); return; } helpRender(); openPanel("helpSheet"); };
+  $("closeHelp").onclick = function () { openPanel(null); };
 
   // ---------- top-down map ----------
   var mini = { on: false, z: 16, tiles: {} };
@@ -2354,7 +2635,7 @@
   $("vidClose").onclick = function () { $("vid").hidden = true; try { $("vidPlayer").pause(); } catch (e) {} };
 
   // Only one panel is open at a time.
-  var PANELS = ["sheet", "lightSheet", "moveSheet", "shotSheet", "carSheet"];
+  var PANELS = ["sheet", "lightSheet", "moveSheet", "shotSheet", "carSheet", "helpSheet"];
   function openPanel(id) { PANELS.forEach(function (p) { $(p).hidden = p !== id; }); $("customRow").hidden = true; }
   $("menuBtn").onclick = function () { if (!$("sheet").hidden) { openPanel(null); return; } openPanel("sheet"); };
   $("lightBtn").onclick = function () { if (!$("lightSheet").hidden) { openPanel(null); return; } buildSunButtons(); openPanel("lightSheet"); };
@@ -2406,6 +2687,14 @@
 
   // ---------- go ----------
   buildLenses(); applyLens(); setNow(); setMode("scout"); updateMoveInfo(); renderMoves();
+  (function () {                        // dark right now? start about 25 minutes before today's sunset instead, so there's something to see
+    var pt = refPoint();
+    if (sunPosition(chosenDate(), pt.lat, pt.lon).elevation >= -0.833) return;
+    var ev = sunEvents($("date").value, S.tz, pt.lat, pt.lon);
+    if (ev.set === null) return;
+    $("time").value = Math.max(0, Math.round((ev.set - 25) / 5) * 5); applyTime(); buildSunButtons();
+    window.__shotScoutDark = true;
+  })();
   window.__shotScoutReady = true;
   if ($("splash").hidden && !store.get("tour")) startTour();
 })();
