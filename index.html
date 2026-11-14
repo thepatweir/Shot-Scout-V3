@@ -419,7 +419,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.13 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.14 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -642,7 +642,7 @@
     <li><b>Export</b><span>Preview video, a three-frame storyboard, or a flight plan PDF with airspace.</span></li>
   </ul>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.13</div>
+  <div class="tap">TAP TO START · VERSION 3.14</div>
 </div>
 <div id="toast"></div>
 
@@ -2554,6 +2554,8 @@
     pbf(bytes, function (f, layerBuf) {
       if (f !== 3) return;
       var name = "", keys = [], vals = [], feats = [], extent = 4096;
+      pbf(layerBuf, function (lf, v) { if (lf === 1) name = pbfText(v); });
+      if (!/airspace/i.test(name)) return;                                   // skip the other map layers without unpacking them
       pbf(layerBuf, function (lf, v) {
         if (lf === 1) name = pbfText(v); else if (lf === 2) feats.push(v); else if (lf === 3) keys.push(pbfText(v)); else if (lf === 5) extent = v;
         else if (lf === 4) { var val = null; pbf(v, function (vf, vv, w) { val = vf === 1 ? pbfText(vv) : vf === 7 ? !!vv : vf === 6 ? ((vv % 2) ? -(vv + 1) / 2 : vv / 2) : vv; }); vals.push(val); }
@@ -3236,12 +3238,14 @@
     if (!flyIn || d < 120 || !isFinite(d) || d > 60000 || h0 < h3 + 20) return false;
     // one straight line: level at the scouting height until it's over the spot, then straight down. No turns, no banking.
     intro = { t: 0, dur: clamp((d + (h0 - h3)) / 560, 3, 7), O: O, p0: p0, h0: h0, h3: h3, ground: g.h, focal: S.focal, hEnd: endHeading, g0: camera.pitch, gEnd: -15 * D2R };
+    try { if (tileset) { intro.sse = tileset.maximumScreenSpaceError; intro.cull = tileset.cullRequestsWhileMoving; tileset.maximumScreenSpaceError = Math.max(intro.sse * 4, 64); tileset.cullRequestsWhileMoving = true; } } catch (e) {}
     openPanel(null); setMode("play"); setClean(true); $("playBar").hidden = true; setHelpers(false);
     return true;
   }
   function ease5(x) { x = clamp(x, 0, 1); return x * x * x * (x * (x * 6 - 15) + 10); }       // starts and stops with no jolt at all
   function introStep(dt) {
     var I = intro; I.t += dt;
+    if (I.sse !== undefined && I.t / I.dur > 0.86) { try { tileset.maximumScreenSpaceError = I.sse; tileset.cullRequestsWhileMoving = I.cull; } catch (e) {} I.sse = undefined; }   // nearly there: full detail for the landing
     var t = Math.min(1, I.t / I.dur), along = ease5(t / 0.64), down = ease5((t - 0.4) / 0.6);     // the two overlap a little, which rounds the corner into the dive
     var x = I.p0[0] * (1 - along), y = I.p0[1] * (1 - along), h = I.h0 + (I.h3 - I.h0) * down, out = Math.hypot(x, y);
     // the camera keeps the landing spot centred all the way in, so it tips over to look straight down in the dive, then levels out at the bottom
