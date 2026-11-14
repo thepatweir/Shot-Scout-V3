@@ -410,7 +410,7 @@
   <div class="row" style="margin-top:8px"><span class="note">Stick sensitivity</span><input id="fpvRate" type="range" min="40" max="160" step="5" value="100" aria-label="FPV stick sensitivity"><b id="fpvRateLbl">100%</b></div>
 
   <h3>Extras</h3>
-  <div class="row"><button class="btn" id="monsterBtn">Monster mode off</button></div>
+  <div class="row"><button class="btn" id="flyInBtn">Fly-in on takeoff: on</button><button class="btn" id="monsterBtn">Monster mode off</button></div>
   <div class="note" id="monsterNote" hidden>A monster is loose near your drone. While flying, tap the right stick to fire. On a computer, click or press F.</div>
 
   <h3>Airspace</h3>
@@ -419,7 +419,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.10 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.12 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -642,7 +642,7 @@
     <li><b>Export</b><span>Preview video, a three-frame storyboard, or a flight plan PDF with airspace.</span></li>
   </ul>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.10</div>
+  <div class="tap">TAP TO START · VERSION 3.12</div>
 </div>
 <div id="toast"></div>
 
@@ -1159,8 +1159,9 @@
     } catch (e) {}
   }
 
-  camera.setView({ destination: Cesium.Cartesian3.fromDegrees(-123.11798, 49.28082, 352),
-    orientation: { heading: Cesium.Math.toRadians(135), pitch: Cesium.Math.toRadians(-35), roll: 0 } });
+  // opening view: downtown Vancouver from the south, with the centre circle on the open ground on the False Creek side of BC Place
+  camera.setView({ destination: Cesium.Cartesian3.fromDegrees(-123.09703, 49.25656, 1250),
+    orientation: { heading: Cesium.Math.toRadians(335), pitch: Cesium.Math.toRadians(-28.7), roll: 0 } });
 
   var tileset = null, quality = store.get("quality") || "std";
   // Picture quality: how many pixels are drawn, how detailed the map tiles are, and how edges are smoothed.
@@ -1437,6 +1438,7 @@
     var g = pickCentre();
     if (!g) { toast("Point the circle at the ground where you'd take off, then try again"); return; }
     setHome(g.lon, g.lat, g.h);
+    if (introStart(g, camera.heading)) return;
     S.lon = g.lon * D2R; S.lat = g.lat * D2R; S.h = g.h + 30; S.heading = camera.heading; setGimbal(-15);
     setMode("fly"); toast("Airborne, 30 m above your takeoff point");
   };
@@ -1529,8 +1531,10 @@
   makeStick($("stickR"), function (x, y) { input.rx = x; input.ry = y; }, function () { monsterFire(); });
   // Keys fly the drone unless you're typing in a text box. Sliders don't swallow them.
   window.addEventListener("keydown", function (e) {
-    var t = e.target, typing = t.tagName === "INPUT" && t.type !== "range";
+    var t = e.target, typing = (t.tagName === "INPUT" && t.type !== "range") || t.tagName === "TEXTAREA";
     if (typing) return;
+    // a system shortcut (such as the Mac screenshot keys, Cmd+Shift+4) never tells the page when its keys are let go, so don't count them as held
+    if (e.metaKey || e.key === "Meta") { keys = {}; return; }
     var k = e.key.toLowerCase(); keys[k] = true;
     if (k === "f" && !e.repeat) monsterFire();
     if (S.mode === "fly" && (k.indexOf("arrow") === 0 || k === " ")) e.preventDefault();
@@ -1538,6 +1542,9 @@
   });
   document.addEventListener("click", function (e) { var b = e.target.closest && e.target.closest("button"); if (b) b.blur(); });
   window.addEventListener("blur", function () { keys = {}; });
+  document.addEventListener("visibilitychange", function () { keys = {}; });
+  // every mouse or key event says whether Shift is really down: use that to un-stick it if its release was missed
+  ["keydown", "keyup", "pointerdown", "pointermove"].forEach(function (ev) { window.addEventListener(ev, function (e) { if (!e.shiftKey && keys.shift) keys.shift = false; if (e.type === "keyup" && e.key === "Meta") keys = {}; }, true); });
   // Mouse wheel tilts the camera while flying: roll down to tilt up, up to tilt down.
   window.addEventListener("wheel", function (e) {
     if (S.mode !== "fly" || (e.target.closest && e.target.closest(".sheet, #vid, #mini"))) return;
@@ -1914,7 +1921,7 @@
   scene.preUpdate.addEventListener(function () {
     var now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     monsterStep(dt, now); carStep(dt);
-    if (S.mode === "play") { if (sb) sbStep(dt); else stepPlay(dt); return; }
+    if (S.mode === "play") { if (intro) introStep(dt); else if (sb) sbStep(dt); else stepPlay(dt); return; }
     if (S.mode !== "fly") return;
     IN = readPad() || input;
     if (IN.hasTilt) {
@@ -3219,6 +3226,52 @@
       .catch(function () { toast("Couldn't copy from here. Press and hold (or right-click) the picture and choose Copy.", 5000); });
   };
 
+  // ---------- fly-in: after "Take off here", a fast race-drone line from the scouting view down to the takeoff point ----------
+  var flyIn = store.get("flyIn") !== "off", intro = null;
+  function flyInLabel() { $("flyInBtn").textContent = "Fly-in on takeoff: " + (flyIn ? "on" : "off"); $("flyInBtn").classList.toggle("on", flyIn); }
+  $("flyInBtn").onclick = function () { flyIn = !flyIn; store.set("flyIn", flyIn ? "on" : "off"); flyInLabel(); };
+  flyInLabel();
+  function introStart(g, endHeading) {
+    var c = camera.positionCartographic, O = [g.lon, g.lat], p0 = toM(O, [c.longitude / D2R, c.latitude / D2R]), h0 = c.height, h3 = g.h + 30, d = Math.hypot(p0[0], p0[1]);
+    if (!flyIn || d < 120 || !isFinite(d) || d > 60000) return false;
+    var ux = -p0[0] / d, uy = -p0[1] / d, nx = -uy, ny = ux, fx = Math.sin(endHeading), fy = Math.cos(endHeading), dh = h0 - h3;
+    var side = (fx * nx + fy * ny) >= 0 ? -1 : 1, run = Math.min(0.4 * d, 700);         // swing wide to one side, then come back across onto the final heading
+    intro = { t: 0, dur: clamp(d / 380, 3, 7), O: O, roll: 0, focal: S.focal, h0: camera.heading, g0: camera.pitch, hEnd: endHeading, gEnd: -15 * D2R,
+      P: [[p0[0], p0[1], h0],
+          [p0[0] + ux * d * 0.42 + nx * d * 0.38 * side, p0[1] + uy * d * 0.42 + ny * d * 0.38 * side, h0 - dh * 0.1],
+          [-fx * run - nx * d * 0.16 * side, -fy * run - ny * d * 0.16 * side, h3 + dh * 0.3 + 40],
+          [0, 0, h3]] };
+    openPanel(null); setMode("play"); setClean(true); $("playBar").hidden = true; setHelpers(false);
+    return true;
+  }
+  function introAt(e) {
+    var P = intro.P, a = 1 - e, out = [0, 0, 0, 0, 0, 0];
+    for (var k = 0; k < 3; k++) {
+      out[k] = a * a * a * P[0][k] + 3 * a * a * e * P[1][k] + 3 * a * e * e * P[2][k] + e * e * e * P[3][k];
+      out[k + 3] = 3 * a * a * (P[1][k] - P[0][k]) + 6 * a * e * (P[2][k] - P[1][k]) + 3 * e * e * (P[3][k] - P[2][k]);
+    }
+    return out;
+  }
+  function turnTo(a, b, w) { return a + ((((b - a) % TWO_PI) + 3 * Math.PI) % TWO_PI - Math.PI) * w; }
+  function introStep(dt) {
+    var I = intro; I.t += dt;
+    var t = Math.min(1, I.t / I.dur), s = t * t * (3 - 2 * t), e = 1 - Math.pow(1 - s, 1.7);            // hard acceleration, then heavy braking into the hover
+    var q = introAt(e), hv = Math.atan2(q[3], q[4]), pv = clamp(Math.atan2(q[5], Math.hypot(q[3], q[4])), -1.2, 0.35);
+    var win = clamp(e / 0.12, 0, 1), wout = clamp((e - 0.72) / 0.28, 0, 1); win = win * win * (3 - 2 * win); wout = wout * wout * (3 - 2 * wout);
+    var heading = turnTo(turnTo(I.h0, hv, win), I.hEnd, wout), pitch = (I.g0 + (pv - I.g0) * win) * (1 - wout) + I.gEnd * wout;
+    var q2 = introAt(Math.min(1, e + 0.02)), turn = turnTo(0, Math.atan2(q2[3], q2[4]) - hv, 1) / 0.02;      // how hard the line is turning: bank into it
+    var want = clamp(turn * 0.55, -1.25, 1.25) * (1 - wout) * win; I.roll += (want - I.roll) * Math.min(1, dt * 7);
+    var ll = offLL(I.O, q[0], q[1]);
+    S.lon = ll[0] * D2R; S.lat = ll[1] * D2R; S.h = q[2]; S.heading = ((heading % TWO_PI) + TWO_PI) % TWO_PI;      // keeps the readout honest on the way in
+    S.focal = I.focal * (1 - 0.38 * Math.sin(Math.PI * Math.min(1, e * 1.15))); applyLens();                  // the lens widens mid-flight for the sense of speed
+    camera.setView({ destination: Cesium.Cartesian3.fromDegrees(ll[0], ll[1], q[2]), orientation: { heading: heading, pitch: pitch, roll: I.roll } });
+    if (t >= 1) {
+      intro = null; S.focal = I.focal; applyLens();
+      S.lon = I.O[0] * D2R; S.lat = I.O[1] * D2R; S.h = I.P[3][2]; S.heading = ((I.hEnd % TWO_PI) + TWO_PI) % TWO_PI; setGimbal(-15);
+      setHelpers(true); setClean(false); setMode("fly"); toast("Airborne, 30 m above your takeoff point");
+    }
+  }
+
   // ---------- help: a searchable set of answers ----------
   var HELP = [
     ["How do I find a location?", "Type a place name or paste coordinates (latitude, longitude) in the search box at the top and tap Go. The search box is only shown while scouting.", "search place address coordinates go find location"],
@@ -3260,6 +3313,7 @@
     ["The map looks blurry or melted in places.", "Detail streams in as you fly. Wait a few seconds or slow down. If it stays blurry, set Picture quality to Standard in Settings and reload. A message appears if the map service is refusing tiles.", "blurry tiles loading melted low detail quality map"],
     ["How do I make it look sharper?", "In Settings, set Picture quality to Ultra. It uses more battery and data. Fast suits older phones.", "quality sharp ultra resolution graphics fast performance slow"],
     ["How do I add this to my home screen?", "On an iPhone, open the page in Safari, tap Share, then Add to Home Screen. On Android, use the browser menu and choose Add to Home screen or Install.", "home screen install app icon iphone android"],
+    ["How do I turn off the fast fly-in at takeoff?", "Open Settings and look under Extras. Tap Fly-in on takeoff to turn it off; Take off here then puts you straight above the circle.", "fly in intro takeoff race dive animation fast skip turn off"],
     ["What is Monster mode?", "A toy under Settings, Extras. A cartoon monster stomps around near your drone. While flying, tap the right stick to fire, or click or press F on a computer.", "monster mode game shoot fire extras"],
     ["The map won't load at all.", "Check your connection, then reload. If it still fails, the map access token may have expired or run out of its monthly allowance. You can enter a different one under Settings, Map access.", "map not loading black blank token access quota error"]
   ];
