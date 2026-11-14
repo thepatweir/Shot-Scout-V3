@@ -409,7 +409,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.7 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.8 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -610,7 +610,7 @@
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
   <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
-  <div class="tap">TAP TO START · VERSION 3.7</div>
+  <div class="tap">TAP TO START · VERSION 3.8</div>
 </div>
 <div id="toast"></div>
 
@@ -2467,7 +2467,8 @@
   }
   // From the airspaces around a point, work out what applies at ground level there.
   function airPick(items, lon, lat) {
-    var here = (items || []).filter(function (a) { return a && AIR_SKIP.indexOf(a.type) < 0 && inGeo(a.geometry, lon, lat); });
+    var here = (items || []).filter(function (a) { return a && AIR_SKIP.indexOf(a.type) < 0 && (a.inside || inGeo(a.geometry, lon, lat)); });
+    var vague = here.filter(function (a) { return !a.lowerLimit; });
     var ground = here.filter(function (a) { return a.lowerLimit && !a.lowerLimit.value && a.lowerLimit.unit !== 6; });
     var ctl = ground.filter(function (a) { return a.icaoClass >= 0 && a.icaoClass <= 4; }).sort(function (a, b) { return a.icaoClass - b.icaoClass; })[0];
     var spec = ground.filter(function (a) { return a.icaoClass === 5 || a.type === 1 || a.type === 2 || a.type === 3; })[0];
@@ -2479,24 +2480,95 @@
       var above = here.filter(function (a) { return a.icaoClass >= 0 && a.icaoClass <= 4 && a.lowerLimit; }).sort(function (a, b) { return airFeet(a.lowerLimit) - airFeet(b.lowerLimit); })[0];
       res.detail = "uncontrolled at the surface" + (above ? "; Class " + AIR_CLASS[above.icaoClass] + " starts at " + airLimit(above.lowerLimit) : "");
     }
+    if (!ctl && !spec && vague.length) { res.cls = "?"; res.name = vague[0].name || ""; res.detail = "there is airspace here but its limits couldn't be read"; res.unsure = true; }
     if (ctl && spec) res.detail += "; also " + (kind[spec.type] || "Class F") + " area " + (spec.name || "");
-    res.hud = res.cls + (res.name ? " · " + res.name : "");
-    res.line = res.cls + " Class airspace" + (ctl ? (res.canada ? " – advance approval will be secured via NAV Drone" : " – authorisation will be secured before flight") : "");
+    res.hud = (res.unsure ? "check" : res.cls) + (res.name ? " · " + res.name : "");
+    res.line = res.unsure ? "" : res.cls + " Class airspace" + (ctl ? (res.canada ? " – advance approval will be secured via NAV Drone" : " – authorisation will be secured before flight") : "");
     return res;
   }
   function airNote() {
     $("airKeyBtn").textContent = air.key ? "Change airspace key" : "Turn airspace on";
     $("airNote").textContent = !air.key ? "Turned off on this device. Shot Scout can show the airspace class from openAIP, a free community database."
       : air.err ? "Lookup failed: " + air.err
-      : air.res ? "Here: Class " + air.res.cls + (air.res.name ? " · " + air.res.name : "") + " · " + air.res.detail + ". From openAIP, a community database: always confirm on the official source before you fly."
+      : air.res ? "Here: " + (air.res.unsure ? "not sure" : "Class " + air.res.cls) + (air.res.name ? " · " + air.res.name : "") + " · " + air.res.detail + (air.dbg ? " [" + air.dbg + "]" : "") + ". From openAIP, a community database: always confirm on the official source before you fly."
       : "Key saved. Checking the airspace where you're looking…";
+  }
+  // --- reading openAIP's vector map tiles (Mapbox Vector Tile format) ---
+  function pbf(buf, onField) {            // walk the fields of one protobuf message
+    var i = 0, n = buf.length;
+    function varint() { var r = 0, m = 1, b; do { b = buf[i++]; r += (b & 127) * m; m *= 128; } while (b & 128 && i < n); return r; }
+    while (i < n) {
+      var key = varint(), f = Math.floor(key / 8), w = key % 8, v;
+      if (w === 0) v = varint();
+      else if (w === 2) { var len = varint(); v = buf.subarray(i, i + len); i += len; }
+      else if (w === 5) { v = new DataView(buf.buffer, buf.byteOffset + i, 4).getFloat32(0, true); i += 4; }
+      else if (w === 1) { v = new DataView(buf.buffer, buf.byteOffset + i, 8).getFloat64(0, true); i += 8; }
+      else return;
+      onField(f, v, w);
+    }
+  }
+  function pbfText(b) { var s2 = ""; for (var i = 0; i < b.length; i++) s2 += String.fromCharCode(b[i]); try { return decodeURIComponent(escape(s2)); } catch (e) { return s2; } }
+  function pbfPacked(b) { var out = []; var i = 0; while (i < b.length) { var r = 0, m = 1, c; do { c = b[i++]; r += (c & 127) * m; m *= 128; } while (c & 128 && i < b.length); out.push(r); } return out; }
+  // Every area in the tile that contains the point (x, y as fractions 0..1 across the tile), with its properties.
+  function tileAreasAt(bytes, fx, fy) {
+    var found = [];
+    pbf(bytes, function (f, layerBuf) {
+      if (f !== 3) return;
+      var name = "", keys = [], vals = [], feats = [], extent = 4096;
+      pbf(layerBuf, function (lf, v) {
+        if (lf === 1) name = pbfText(v); else if (lf === 2) feats.push(v); else if (lf === 3) keys.push(pbfText(v)); else if (lf === 5) extent = v;
+        else if (lf === 4) { var val = null; pbf(v, function (vf, vv, w) { val = vf === 1 ? pbfText(vv) : vf === 7 ? !!vv : vf === 6 ? ((vv % 2) ? -(vv + 1) / 2 : vv / 2) : vv; }); vals.push(val); }
+      });
+      if (!/airspace/i.test(name)) return;
+      var px = fx * extent, py = fy * extent;
+      feats.forEach(function (fb) {
+        var tags = [], type = 0, geom = [];
+        pbf(fb, function (ff, v) { if (ff === 2) tags = pbfPacked(v); else if (ff === 3) type = v; else if (ff === 4) geom = pbfPacked(v); });
+        if (type !== 3) return;
+        var x = 0, y = 0, ring = null, inside = false, i = 0;
+        function test() { if (ring && ring.length > 2 && inRing(ring, px, py)) inside = !inside; ring = null; }
+        while (i < geom.length) {
+          var cmd = geom[i] & 7, cnt = geom[i] >> 3; i++;
+          if (cmd === 7) { test(); continue; }
+          for (var k = 0; k < cnt && i + 1 < geom.length; k++) {
+            var dx = geom[i++], dy = geom[i++]; x += (dx % 2) ? -(dx + 1) / 2 : dx / 2; y += (dy % 2) ? -(dy + 1) / 2 : dy / 2;
+            if (cmd === 1) { test(); ring = [[x, y]]; } else if (ring) ring.push([x, y]);
+          }
+        }
+        test();
+        if (!inside) return;
+        var props = {}; for (var t = 0; t + 1 < tags.length; t += 2) props[keys[tags[t]]] = vals[tags[t + 1]];
+        found.push(props);
+      });
+    });
+    return found;
+  }
+  // Turn a tile feature's properties into the same shape airPick understands, whatever spelling the fields use.
+  function airFromProps(p) {
+    function pick(re) { for (var k in p) if (re.test(k)) return p[k]; }
+    function code(v, map) { if (typeof v === "number") return v; if (v === undefined || v === null) return undefined; var s2 = String(v).toLowerCase(); return isNaN(+s2) ? map[s2] : +s2; }
+    function limit(side) {
+      var val = pick(new RegExp(side + ".*value", "i")); if (val === undefined || val === null || isNaN(+val)) return null;
+      var unit = code(pick(new RegExp(side + ".*unit", "i")), { m: 0, meter: 0, ft: 1, feet: 1, fl: 6 }), dat = code(pick(new RegExp(side + ".*(datum|ref)", "i")), { gnd: 0, sfc: 0, agl: 0, msl: 1, amsl: 1, std: 2 });
+      return { value: +val, unit: unit === undefined ? 1 : unit, referenceDatum: dat === undefined ? 1 : dat };
+    }
+    var cls = code(pick(/icao.*class|^class$/i), { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6 }), type = code(pick(/^type$/i), { restricted: 1, danger: 2, prohibited: 3, ctr: 4, tma: 7, fir: 10, uir: 11, adiz: 12, acc: 27, fis: 33, fis_sector: 33 });
+    return { inside: true, name: pick(/^name$/i) || pick(/name/i) || "", country: pick(/^country$/i) || "", type: type === undefined ? 0 : type, icaoClass: cls === undefined ? 8 : cls,
+             lowerLimit: limit("lower") || limit("floor"), upperLimit: limit("upper") || limit("ceil") };
   }
   function airLookup(pt) {
     if (!air.key || air.busy) return;
     air.busy = true; air.at = pt; air.last = Date.now();
-    var d = 0.02, url = "https://api.core.openaip.net/api/airspaces?bbox=" + [pt.lon - d, pt.lat - d, pt.lon + d, pt.lat + d].map(function (n) { return n.toFixed(4); }).join(",") + "&limit=200&apiKey=" + encodeURIComponent(air.key);
-    fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "openAIP didn't accept the key" : "openAIP answered with error " + r.status); return r.json(); })
-      .then(function (j) { air.res = airPick(j.items, pt.lon, pt.lat); air.err = ""; })
+    var z = 11, w = worldPx(pt.lon, pt.lat, z), tx = Math.floor(w.x / 256), ty = Math.floor(w.y / 256);
+    fetch("https://api.tiles.openaip.net/api/data/openaip/" + z + "/" + tx + "/" + ty + ".pbf?apiKey=" + encodeURIComponent(air.key))
+      .then(function (r) { if (r.status === 204 || r.status === 404) return new ArrayBuffer(0); if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "openAIP didn't accept the key" : r.status === 429 ? "openAIP is busy, error 429" : "openAIP answered with error " + r.status); return r.arrayBuffer(); })
+      .then(function (buf) {
+        var props = tileAreasAt(new Uint8Array(buf), w.x / 256 - tx, w.y / 256 - ty), items = props.map(airFromProps);
+        air.res = airPick(items, pt.lon, pt.lat); air.err = "";
+        if (!items.length || !items[0].country) air.res.canada = pt.lat > 41.6 && pt.lon < -52 && (pt.lat > 49 || pt.lon > -95);
+        if (air.res.canada && air.res.line) air.res.line = air.res.line.replace("authorisation will be secured before flight", "advance approval will be secured via NAV Drone");
+        air.dbg = air.res.unsure && props[0] ? "fields: " + Object.keys(props[0]).join(", ") : "";
+      })
       .catch(function (e) { air.res = null; air.err = (e && /key|error/.test(e.message)) ? e.message : "couldn't reach openAIP from this browser"; })
       .then(function () { air.busy = false; airNote(); });
   }
