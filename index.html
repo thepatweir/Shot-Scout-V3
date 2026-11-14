@@ -353,7 +353,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.2 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.3 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -494,7 +494,7 @@
   <p class="by">Created by <b>Patrick Weir</b></p>
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
-  <div class="tap">TAP TO START · VERSION 3.2</div>
+  <div class="tap">TAP TO START · VERSION 3.3</div>
 </div>
 <div id="toast"></div>
 
@@ -977,6 +977,20 @@
   applyQuality();
   Cesium.createGooglePhotorealistic3DTileset().then(function (ts) {
     tileset = ts; scene.primitives.add(ts); applyQuality();
+    try {
+      // Give the map more memory before it starts holding back detail (computers have room; phones keep the default),
+      // and load the whole view evenly instead of putting the edges of the screen off.
+      if (!COARSE) { ts.cacheBytes = 1536 * 1024 * 1024; ts.maximumCacheOverflowBytes = 1024 * 1024 * 1024; }
+      ts.foveatedScreenSpaceError = false;
+      var failT = 0, failN = 0;
+      ts.tileFailed.addEventListener(function (err) {
+        failN++;
+        var now = Date.now(); if (now - failT < 20000) return; failT = now;
+        var msg = String((err && err.message) || ""), code = (msg.match(/\b(4\d\d|5\d\d)\b/) || [])[1];
+        toast(code === "429" || code === "403" ? "The map service is refusing some tiles (code " + code + "). The free quota may be used up for now."
+                                              : "Some map tiles didn't load" + (code ? " (code " + code + ")" : "") + ". Check your connection; detail fills in as they retry.", 5000);
+      });
+    } catch (e) {}
   }).catch(function (err) {
     console.error(err);
     toast("The 3D map didn't load. Check your connection, then the token under Settings, Map access.", 9000);
