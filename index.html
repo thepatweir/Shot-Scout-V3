@@ -216,6 +216,7 @@
   #padMon .bar { flex:1; height:8px; border-radius:4px; background:rgba(255,255,255,.12); position:relative; overflow:hidden; }
   #padMon .bar i { position:absolute; top:0; bottom:0; left:50%; width:0; background:var(--accent); }
   #padMon .ax.used { color:var(--ink); }
+  #splash .upd { position:absolute; bottom:calc(env(safe-area-inset-bottom, 0px) + 64px); left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--dim); font-size:13px; }
   /* quick tour */
   #tut { position:fixed; inset:0; z-index:20; touch-action:none; }
   #tutRing { position:fixed; border:2px solid var(--accent); border-radius:14px; box-shadow:0 0 0 4000px rgba(0,0,0,.55), 0 0 22px rgba(244,194,13,.55); pointer-events:none; transition:left .25s, top .25s, width .25s, height .25s; }
@@ -353,7 +354,7 @@
 
   <h3>Map access</h3>
   <div class="row"><button class="btn" id="resetTok">Change map access token</button></div>
-  <div class="note" style="margin-top:10px">Shot Scout version 3.3 · Peacemaker Filmworks</div>
+  <div class="note" style="margin-top:10px">Shot Scout version 3.5 · Peacemaker Filmworks</div>
 </div>
 
 <!-- Camera moves -->
@@ -494,7 +495,8 @@
   <p class="by">Created by <b>Patrick Weir</b></p>
   <div class="rule"></div>
   <div class="co">Peacemaker Filmworks</div>
-  <div class="tap">TAP TO START · VERSION 3.3</div>
+  <div class="upd"><span id="updInfo"></span><button class="btn go" id="updBtn" hidden>Reload to update</button></div>
+  <div class="tap">TAP TO START · VERSION 3.5</div>
 </div>
 <div id="toast"></div>
 
@@ -896,9 +898,27 @@
 
   // ---------- splash ----------
   (function () {
-    var s = $("splash"), gone = false;
-    function hide() { if (gone) return; gone = true; s.style.opacity = 0; setTimeout(function () { s.hidden = true; if (window.__shotScoutReady && !store.get("tour")) window.__shotScoutTour(); }, 650); }
-    s.addEventListener("click", hide); setTimeout(hide, 2800);
+    var s = $("splash"), gone = false, mine = (s.textContent.match(/VERSION (\d+(?:\.\d+)+)/) || [])[1] || "", poll = null;
+    function hide() {
+      if (gone) return; gone = true; clearInterval(poll);
+      if (window.__shotScoutStartMap) window.__shotScoutStartMap();
+      s.style.opacity = 0;
+      setTimeout(function () { s.hidden = true; if (window.__shotScoutReady && !store.get("tour")) window.__shotScoutTour(); }, 650);
+    }
+    s.addEventListener("click", function (e) { if (e.target && e.target.id === "updBtn") return; hide(); });
+    $("updBtn").onclick = function () { location.reload(); };
+    function newer(a, b) { var x = a.split("."), y = b.split("."); for (var i = 0; i < Math.max(x.length, y.length); i++) { var d = (+x[i] || 0) - (+y[i] || 0); if (d) return d > 0; } return false; }
+    // Ask the site which version is uploaded, without loading the map. Lets you wait here until a new upload is live.
+    function check() {
+      if (gone || !/^https?:/.test(location.protocol)) return;
+      fetch(location.pathname + "?check=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) {
+        var live = (t.match(/TAP TO START \u00b7 VERSION (\d+(?:\.\d+)+)/) || [])[1];
+        if (!live || gone) return;
+        if (newer(live, mine)) { $("updInfo").textContent = "Version " + live + " is ready."; $("updBtn").hidden = false; }
+        else { $("updInfo").textContent = "This is the latest uploaded version."; $("updBtn").hidden = true; }
+      }).catch(function () {});
+    }
+    check(); poll = setInterval(check, 6000);
   })();
 
   // ---------- access token ----------
@@ -975,26 +995,38 @@
   $("qStd").onclick = function () { setQuality("std"); };
   $("qUltra").onclick = function () { setQuality("ultra"); toast("Ultra quality on. If flying gets choppy, switch back to Standard."); };
   applyQuality();
-  Cesium.createGooglePhotorealistic3DTileset().then(function (ts) {
-    tileset = ts; scene.primitives.add(ts); applyQuality();
-    try {
-      // Give the map more memory before it starts holding back detail (computers have room; phones keep the default),
-      // and load the whole view evenly instead of putting the edges of the screen off.
-      if (!COARSE) { ts.cacheBytes = 1536 * 1024 * 1024; ts.maximumCacheOverflowBytes = 1024 * 1024 * 1024; }
-      ts.foveatedScreenSpaceError = false;
-      var failT = 0, failN = 0;
-      ts.tileFailed.addEventListener(function (err) {
-        failN++;
-        var now = Date.now(); if (now - failT < 20000) return; failT = now;
-        var msg = String((err && err.message) || ""), code = (msg.match(/\b(4\d\d|5\d\d)\b/) || [])[1];
-        toast(code === "429" || code === "403" ? "The map service is refusing some tiles (code " + code + "). The free quota may be used up for now."
-                                              : "Some map tiles didn't load" + (code ? " (code " + code + ")" : "") + ". Check your connection; detail fills in as they retry.", 5000);
-      });
-    } catch (e) {}
-  }).catch(function (err) {
-    console.error(err);
-    toast("The 3D map didn't load. Check your connection, then the token under Settings, Map access.", 9000);
-  });
+  // The 3D map is only requested once you go past the opening screen. Each request counts as one session of the map allowance,
+  // so reloading just to check the version costs nothing.
+  var mapStarted = false;
+  function startMap() {
+    if (mapStarted) return; mapStarted = true;
+    Cesium.createGooglePhotorealistic3DTileset().then(function (ts) {
+      tileset = ts; scene.primitives.add(ts); applyQuality();
+      try {
+        // Give the map more memory before it starts holding back detail (computers have room; phones keep the default),
+        // and load the whole view evenly instead of putting the edges of the screen off.
+        if (!COARSE) { ts.cacheBytes = 1536 * 1024 * 1024; ts.maximumCacheOverflowBytes = 1024 * 1024 * 1024; }
+        ts.foveatedScreenSpaceError = false;
+        // By default the engine stops requesting new map tiles while the camera is moving quickly, which starves fast FPV flying.
+        ts.cullRequestsWhileMoving = false;
+        // Allow more downloads at once, so detail catches up sooner behind a fast-moving camera.
+        try { Cesium.RequestScheduler.maximumRequestsPerServer = 18; Cesium.RequestScheduler.requestsByServer["tile.googleapis.com:443"] = 18; } catch (e2) {}
+        var failT = 0, failN = 0;
+        ts.tileFailed.addEventListener(function (err) {
+          failN++;
+          var now = Date.now(); if (now - failT < 20000) return; failT = now;
+          var msg = String((err && err.message) || ""), code = (msg.match(/\b(4\d\d|5\d\d)\b/) || [])[1];
+          toast(code === "429" || code === "403" ? "The map service is refusing some tiles (code " + code + "). The free quota may be used up for now."
+                                                : "Some map tiles didn't load" + (code ? " (code " + code + ")" : "") + ". Check your connection; detail fills in as they retry.", 5000);
+        });
+      } catch (e) {}
+    }).catch(function (err) {
+      console.error(err);
+      toast("The 3D map didn't load. Check your connection, then the token under Settings, Map access.", 9000);
+    });
+  }
+  window.__shotScoutStartMap = startMap;
+  if ($("splash").hidden) startMap();
 
   // ---------- lens + frame guide ----------
   var LENSES = [18, 24, 35, 50, 75];
